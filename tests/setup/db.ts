@@ -10,7 +10,7 @@ const INCOME = ["급여", "부수입", "기타 수입"];
 /** 모든 테이블 TRUNCATE 후 카테고리 12개 재시드, 쿠키/헤더 초기화 */
 export async function resetDb() {
   await db.$executeRawUnsafe(
-    'TRUNCATE "Transaction","CategoryBudget","MonthlyBudget","Category","Session","LoginAttempt" RESTART IDENTITY CASCADE',
+    'TRUNCATE "Transaction","RecurringExpense","CategoryBudget","MonthlyBudget","Category","Session","LoginAttempt" RESTART IDENTITY CASCADE',
   );
   await db.category.createMany({
     data: [

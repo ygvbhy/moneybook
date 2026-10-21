@@ -3,6 +3,7 @@ import {
   buildMonthGrid,
   fromDbDate,
   isValidDateString,
+  lastDayOfMonth,
   monthOf,
   monthRange,
   normalizeMonthParam,
@@ -37,6 +38,20 @@ describe("date: 월 범위와 월 이동", () => {
   });
   it("monthOf", () => {
     expect(monthOf("2026-10-31")).toBe("2026-10");
+  });
+});
+
+describe("date: 월의 말일", () => {
+  it.each([
+    ["2026-02", 28],
+    ["2028-02", 29],
+    ["2026-04", 30],
+    ["2026-12", 31],
+  ])("%s -> %i", (ym, expected) => {
+    expect(lastDayOfMonth(ym)).toBe(expected);
+  });
+  it("잘못된 월은 던진다", () => {
+    expect(() => lastDayOfMonth("2026-13")).toThrow();
   });
 });
 

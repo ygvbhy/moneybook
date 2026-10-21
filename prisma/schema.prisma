@@ -28,6 +28,7 @@ model Category {
   createdAt  DateTime        @default(now()) @db.Timestamptz
   transactions    Transaction[]
   categoryBudgets CategoryBudget[]
+  recurringExpenses RecurringExpense[]
   @@unique([type, name])
 }
 
@@ -45,8 +46,29 @@ model Transaction {
   memo          String?
   createdAt     DateTime        @default(now()) @db.Timestamptz
   updatedAt     DateTime        @updatedAt @db.Timestamptz
+  recurringExpenseId String?
+  recurringExpense   RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
   @@index([occurredOn])
   @@index([categoryId, occurredOn])
+  @@index([recurringExpenseId])
+}
+
+model RecurringExpense {         // 고정지출 (매월 dayOfMonth일에 지출 거래 자동 생성)
+  id            String         @id @default(cuid())
+  categoryId    String
+  category      Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  item          String
+  amount        Int
+  dayOfMonth    Int
+  merchant      String?
+  paymentMethod PaymentMethod?
+  memo          String?
+  nextRunOn     DateTime       @db.Date   // 아직 만들지 않은 다음 발생일
+  lastRunOn     DateTime?      @db.Date   // 마지막으로 생성한 발생일
+  createdAt     DateTime       @default(now()) @db.Timestamptz
+  updatedAt     DateTime       @updatedAt @db.Timestamptz
+  transactions  Transaction[]
+  @@index([nextRunOn])
 }
 
 model MonthlyBudget {            // 월 전체 지출 예산 (월당 1행)

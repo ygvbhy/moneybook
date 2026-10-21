@@ -67,6 +67,13 @@ export function shiftMonth(ym: string, delta: number): string {
   return `${String(d.getUTCFullYear()).padStart(4, "0")}-${pad(d.getUTCMonth() + 1)}`;
 }
 
+/** "YYYY-MM"의 말일(일자 숫자) */
+export function lastDayOfMonth(ym: string): number {
+  const p = parseYearMonth(ym);
+  if (!p) throw new Error(`Invalid year-month: ${ym}`);
+  return new Date(Date.UTC(p.year, p.month, 0)).getUTCDate();
+}
+
 /** 반열린 구간 [start, endExclusive) */
 export function monthRange(ym: string): { start: string; endExclusive: string } {
   return { start: `${ym}-01`, endExclusive: `${shiftMonth(ym, 1)}-01` };
