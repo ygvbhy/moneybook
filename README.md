@@ -1,6 +1,6 @@
 # 가계부 웹
 
-1인용 개인 가계부(Moneybook). 수입·지출 기록, 월간 캘린더, 월별 통계, 카테고리 예산을 관리한다.
+1인용 개인 가계부(Moneybook). 수입·지출 기록, 월간 캘린더, 월별 통계, 카테고리 예산, 매월 자동 등록되는 고정지출을 관리한다.
 
 - Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui
 - Prisma 7 + PostgreSQL 17 · Zod · React Hook Form · Recharts · Vitest
@@ -52,7 +52,7 @@ npm run build
    - `DATABASE_URL`: pooled 연결 문자열 (런타임)
    - `DIRECT_DATABASE_URL`: direct 연결 문자열 (마이그레이션)
    - `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`: Vercel 환경변수에는 `\` 이스케이프 없이 해시를 그대로 넣는다
-3. 마이그레이션은 빌드에서 실행하지 않는다 (Preview 배포가 운영 DB를 바꾸지 않도록). 배포 전에 로컬에서 운영 direct URL로 실행한다.
+3. 마이그레이션은 빌드에서 실행하지 않는다 (Preview 배포가 운영 DB를 바꾸지 않도록). **코드 배포보다 먼저** 로컬에서 운영 direct URL로 실행한다. 모든 앱 페이지가 렌더 시 고정지출 테이블을 조회하므로, 마이그레이션 없이 배포하면 전 페이지가 오류가 난다.
    ```bash
    DIRECT_DATABASE_URL="<운영 direct URL>" npm run db:deploy
    DATABASE_URL="<운영 URL>" npm run db:seed   # 최초 1회
@@ -67,3 +67,4 @@ npm run build
   ```
 - 세션은 30일 유지되며 로그아웃 시 서버에서 즉시 폐기된다.
 - 거래 날짜는 Asia/Seoul 기준 달력 날짜(`DATE`)로 저장한다.
+- 고정지출은 앱 페이지를 렌더할 때 오늘(서울)까지 도래한 발생분을 실제 거래로 만든다(`materializeRecurring`). 다음 발생일 커서(`nextRunOn`)로 중복을 막으므로 자동 생성된 거래를 지워도 다시 생기지 않는다. 그 달에 없는 날짜는 말일에 등록한다.
