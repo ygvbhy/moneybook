@@ -14,9 +14,10 @@ type Props = {
   selectedDate: string | null;
   today: string;
   totals: Record<string, DayTotal>;
+  upcoming: Record<string, number>;
 };
 
-export function CalendarGrid({ month, selectedDate, today, totals }: Props) {
+export function CalendarGrid({ month, selectedDate, today, totals, upcoming }: Props) {
   const router = useRouter();
   const cells = buildMonthGrid(month);
   const inMonthDates = cells.filter((c) => c.inMonth).map((c) => c.date);
@@ -105,7 +106,9 @@ export function CalendarGrid({ month, selectedDate, today, totals }: Props) {
               }
               const t = totals[cell.date];
               const m = Number(cell.date.slice(5, 7));
-              const label = `${m}월 ${day}일, 지출 ${formatKRW(t?.expense ?? 0)}원, 수입 ${formatKRW(t?.income ?? 0)}원, 거래 ${t?.count ?? 0}건`;
+              const baseLabel = `${m}월 ${day}일, 지출 ${formatKRW(t?.expense ?? 0)}원, 수입 ${formatKRW(t?.income ?? 0)}원, 거래 ${t?.count ?? 0}건`;
+              const up = upcoming[cell.date] ?? 0;
+              const label = up > 0 ? `${baseLabel}, 예정 지출 ${formatKRW(up)}원` : baseLabel;
               const isSelected = cell.date === selectedDate;
               const isToday = cell.date === today;
               return (
@@ -160,6 +163,15 @@ export function CalendarGrid({ month, selectedDate, today, totals }: Props) {
                         </span>
                       )}
                     </>
+                  )}
+                  {up > 0 && (
+                    <span
+                      aria-hidden
+                      className="max-w-full truncate text-[10px] leading-tight text-muted-foreground tabular-nums sm:text-xs"
+                    >
+                      <span className="sm:hidden">-{formatCompactKRW(up)}</span>
+                      <span className="hidden sm:inline">예정 -{formatKRW(up)}</span>
+                    </span>
                   )}
                 </div>
               );

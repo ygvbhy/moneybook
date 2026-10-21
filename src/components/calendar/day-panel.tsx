@@ -1,19 +1,23 @@
 "use client";
 
+import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AmountText } from "@/components/transaction/amount-text";
 import { useTransactionDialog } from "@/components/transaction/transaction-dialog-provider";
 import { formatDateLabel } from "@/lib/labels";
 import { formatKRW } from "@/lib/money";
+import type { UpcomingItem } from "@/lib/recurring";
 import type { TransactionDto } from "@/server/transactions";
 
 export function DayPanel({
   date,
   transactions,
+  upcoming,
 }: {
   date: string | null;
   transactions: TransactionDto[];
+  upcoming: UpcomingItem[];
 }) {
   const { openCreate, openEdit } = useTransactionDialog();
 
@@ -35,6 +39,8 @@ export function DayPanel({
     else expense += tx.amount;
   }
 
+  const upcomingSum = upcoming.reduce((sum, u) => sum + u.amount, 0);
+
   return (
     <section aria-label="선택한 날짜" className="rounded-xl border p-4">
       <div className="flex items-start justify-between gap-2">
@@ -44,6 +50,12 @@ export function DayPanel({
             <span className="text-income">수입 +{formatKRW(income)}원</span>
             {" · "}
             <span className="text-expense">지출 -{formatKRW(expense)}원</span>
+            {upcoming.length > 0 && (
+              <>
+                {" · "}
+                <span className="text-muted-foreground">예정 -{formatKRW(upcomingSum)}원</span>
+              </>
+            )}
           </p>
         </div>
         <Button size="sm" onClick={() => openCreate({ date })}>
@@ -75,6 +87,31 @@ export function DayPanel({
             </li>
           ))}
         </ul>
+      )}
+      {upcoming.length > 0 && (
+        <>
+          <h3 className="mt-4 text-xs font-medium text-muted-foreground">예정</h3>
+          <ul className="divide-y">
+            {upcoming.map((u) => (
+              <li key={u.recurringId}>
+                <Link
+                  href="/recurring"
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-1 py-3 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{u.item}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {u.categoryName}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+                    -{formatKRW(u.amount)}원
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );

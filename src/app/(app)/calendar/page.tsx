@@ -1,7 +1,8 @@
 import { requireSession } from "@/lib/auth/dal";
 import { isValidDateString, monthOf, normalizeMonthParam, todayInSeoul } from "@/lib/date";
+import { upcomingIn } from "@/lib/recurring";
 import { getDailyTotals, listTransactionsByDate } from "@/server/calendar";
-import { materializeRecurring } from "@/server/recurring";
+import { listRecurring, materializeRecurring } from "@/server/recurring";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { PageHeader } from "@/components/app-shell/page-header";
 import { CalendarGrid } from "@/components/calendar/calendar-grid";
@@ -17,10 +18,15 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const date =
     isValidDateString(dateParam) && monthOf(dateParam) === month ? dateParam : null;
 
-  const [totals, transactions] = await Promise.all([
+  const [totals, transactions, recurring] = await Promise.all([
     getDailyTotals(month),
     date ? listTransactionsByDate(date) : Promise.resolve([]),
+    listRecurring(),
   ]);
+  const upcoming = upcomingIn(month, recurring);
+  const upcomingTotals: Record<string, number> = {};
+  for (const u of upcoming) upcomingTotals[u.date] = (upcomingTotals[u.date] ?? 0) + u.amount;
+  const selectedUpcoming = date ? upcoming.filter((u) => u.date === date) : [];
 
   return (
     <>
@@ -28,8 +34,14 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
         <MonthSwitcher month={month} basePath="/calendar" searchParams={sp} />
       </PageHeader>
       <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_20rem] md:items-start">
-        <CalendarGrid month={month} selectedDate={date} today={today} totals={totals} />
-        <DayPanel date={date} transactions={transactions} />
+        <CalendarGrid
+          month={month}
+          selectedDate={date}
+          today={today}
+          totals={totals}
+          upcoming={upcomingTotals}
+        />
+        <DayPanel date={date} transactions={transactions} upcoming={selectedUpcoming} />
       </div>
     </>
   );
