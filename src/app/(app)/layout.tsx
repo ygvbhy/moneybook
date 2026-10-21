@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { requireSession } from "@/lib/auth/dal";
 import { todayInSeoul } from "@/lib/date";
 import { getRecentCategoryIds } from "@/server/dashboard";
@@ -11,6 +12,7 @@ import { TransactionDialogProvider } from "@/components/transaction/transaction-
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   await requireSession();
+  const sidebarCollapsed = (await cookies()).get("sidebar_collapsed")?.value === "1";
   const [categories, expenseIds, incomeIds] = await Promise.all([
     listCategories(),
     getRecentCategoryIds("EXPENSE"),
@@ -23,8 +25,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       today={todayInSeoul()}
     >
       <div className="flex min-h-full flex-1 flex-col">
-        <Sidebar />
-        <div className="flex flex-1 flex-col md:pl-56">
+        <Sidebar defaultCollapsed={sidebarCollapsed} />
+        <div className="flex flex-1 flex-col transition-[padding] duration-200 motion-reduce:transition-none md:pl-56 md:peer-data-[collapsed=true]:pl-16">
         <MobileHeader />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-36 md:px-8 md:pt-8 md:pb-24">
             {children}
