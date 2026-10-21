@@ -18,5 +18,6 @@ export function prismaCode(e: unknown): string | undefined {
 }
 
 export const TX_NOT_FOUND = "이미 삭제되었거나 존재하지 않는 거래입니다";
+export const RECURRING_NOT_FOUND = "이미 삭제되었거나 존재하지 않는 고정지출입니다";
 export const CATEGORY_NOT_FOUND = "이미 삭제되었거나 존재하지 않는 카테고리입니다";
 export const CATEGORY_DUPLICATE = "같은 이름의 카테고리가 있습니다(보관됨이면 복원하세요)";

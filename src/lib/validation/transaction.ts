@@ -13,7 +13,7 @@ export const PAYMENT_METHODS = [
 ] as const;
 
 /** 앞뒤 공백 제거, 빈 문자열/미입력은 null */
-const optionalText = (max: number, label: string) =>
+export const optionalText = (max: number, label: string) =>
   z.preprocess(
     (v) => {
       if (v === undefined || v === null) return null;
