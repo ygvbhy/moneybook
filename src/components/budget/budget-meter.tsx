@@ -9,7 +9,7 @@ export function BudgetMeter({ status }: { status: BudgetStatus }) {
   return (
     <div className="space-y-1.5 text-sm tabular-nums">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span>사용 {formatKRW(spent)}원</span>
+        <span className={spent > 0 ? "text-expense" : undefined}>사용 {formatKRW(spent)}원</span>
         {budget !== null && remaining !== null && !over && (
           <span className="text-muted-foreground">잔여 {formatKRW(remaining)}원</span>
         )}

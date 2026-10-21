@@ -30,7 +30,7 @@ function ChartTooltip({
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md">
       <p className="font-medium">{d.name}</p>
-      <p className="tabular-nums">지출 {formatKRW(d.total)}원</p>
+      <p className="tabular-nums">지출 <span className="text-expense">{formatKRW(d.total)}원</span></p>
       <p className="text-muted-foreground tabular-nums">
         {d.rate === null ? "예산 없음" : `예산 사용률 ${d.rate.toFixed(1)}%${d.over ? " (초과)" : ""}`}
       </p>
@@ -43,12 +43,11 @@ export function CategorySpendingChart({ data }: { data: CategorySpendingDatum[] 
     <div className="viz-root">
       <style>{`
         .viz-root {
-          --viz-series-1: #2a78d6;
+          --viz-series-1: var(--expense);
           --viz-axis: #52514e;
           --viz-grid: #e4e3df;
         }
         .dark .viz-root {
-          --viz-series-1: #3987e5;
           --viz-axis: #c3c2b7;
           --viz-grid: #3a3a38;
         }

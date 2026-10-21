@@ -78,7 +78,12 @@ export function TotalBudgetForm({
         {total === null ? (
           <p className="text-sm text-muted-foreground">
             이번 달 전체 예산을 설정하세요
-            {overview.spent > 0 && ` (이번 달 지출 ${formatKRW(overview.spent)}원)`}
+            {overview.spent > 0 && (
+              <>
+                {" (이번 달 지출 "}
+                <span className="text-expense">{formatKRW(overview.spent)}원</span>)
+              </>
+            )}
           </p>
         ) : (
           <>

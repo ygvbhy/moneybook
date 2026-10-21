@@ -1,7 +1,7 @@
 import { formatKRW } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
-/** 수입은 +, 지출은 −(U+2212). 색만으로 구분하지 않는다 */
+/** 수입은 +, 지출은 -. 색만으로 구분하지 않는다 */
 export function AmountText({
   type,
   amount,
@@ -16,11 +16,11 @@ export function AmountText({
     <span
       className={cn(
         "tabular-nums",
-        income && "text-emerald-700 dark:text-emerald-400",
+        income ? "text-income" : "text-expense",
         className,
       )}
     >
-      {income ? "+" : "−"}
+      {income ? "+" : "-"}
       {formatKRW(amount)}원
     </span>
   );

@@ -38,7 +38,10 @@ export function BudgetProgressCard({
           <>
             <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
               <span className="tabular-nums">
-                사용 {formatKRW(overview.spent)}원 / 예산 {formatKRW(overview.budget!)}원
+                <span className={overview.spent > 0 ? "text-expense" : undefined}>
+                  사용 {formatKRW(overview.spent)}원
+                </span> / 예산{" "}
+                {formatKRW(overview.budget!)}원
               </span>
               <span className="flex items-center gap-2">
                 {overview.over && (

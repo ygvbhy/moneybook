@@ -41,9 +41,9 @@ export function DayPanel({
         <div>
           <h2 className="text-base font-semibold">{formatDateLabel(date)}</h2>
           <p className="mt-1 text-sm tabular-nums">
-            <span className="text-emerald-700 dark:text-emerald-400">수입 +{formatKRW(income)}원</span>
+            <span className="text-income">수입 +{formatKRW(income)}원</span>
             {" · "}
-            <span>지출 −{formatKRW(expense)}원</span>
+            <span className="text-expense">지출 -{formatKRW(expense)}원</span>
           </p>
         </div>
         <Button size="sm" onClick={() => openCreate({ date })}>

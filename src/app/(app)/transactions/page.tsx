@@ -40,9 +40,9 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
         sort={params.sort}
       />
       <p className="mb-4 text-sm tabular-nums" aria-label="필터 결과 합계">
-        <span className="text-emerald-700 dark:text-emerald-400">수입 +{formatKRW(income)}원</span>
+        <span className="text-income">수입 +{formatKRW(income)}원</span>
         {" · "}
-        <span>지출 −{formatKRW(expense)}원</span>
+        <span className="text-expense">지출 -{formatKRW(expense)}원</span>
       </p>
       {transactions.length === 0 ? (
         filtered ? (

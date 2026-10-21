@@ -36,25 +36,29 @@ function Stat({
 }
 
 export function SummaryCards({ month, income, expense, net, overview }: Props) {
-  const netSign = net > 0 ? "+" : net < 0 ? "−" : "";
+  const netSign = net > 0 ? "+" : net < 0 ? "-" : "";
   const hasBudget = overview.budget !== null && overview.budget > 0;
   const remaining = overview.remaining ?? 0;
 
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Stat title="총수입">
-        <span className={cn(income > 0 && "text-emerald-700 dark:text-emerald-400")}>
+        <span className={cn(income > 0 && "text-income")}>
           {income > 0 && "+"}
           {formatKRW(income)}원
         </span>
       </Stat>
       <Stat title="총지출">
-        {expense > 0 && "−"}
-        {formatKRW(expense)}원
+        <span className={cn(expense > 0 && "text-expense")}>
+          {expense > 0 && "-"}
+          {formatKRW(expense)}원
+        </span>
       </Stat>
-      <Stat title="순현금흐름" helper="수입 − 지출 · 계좌 잔고 아님">
-        {netSign}
-        {formatKRW(Math.abs(net))}원
+      <Stat title="순현금흐름" helper="수입 - 지출 · 계좌 잔고 아님">
+        <span className={cn(net > 0 && "text-income", net < 0 && "text-expense")}>
+          {netSign}
+          {formatKRW(Math.abs(net))}원
+        </span>
       </Stat>
       <Stat
         title="남은 예산"
@@ -70,7 +74,7 @@ export function SummaryCards({ month, income, expense, net, overview }: Props) {
           <span aria-label="남은 예산 없음">—</span>
         ) : overview.over ? (
           <span className="flex flex-wrap items-center gap-1.5">
-            <span className="text-destructive">−{formatKRW(Math.abs(remaining))}원</span>
+            <span className="text-destructive">-{formatKRW(Math.abs(remaining))}원</span>
             <Badge variant="destructive">초과</Badge>
           </span>
         ) : (
