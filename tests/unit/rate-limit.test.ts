@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateLoginLimit, retryAfterMinutes } from "@/lib/auth/rate-limit";
+import { IP_LIMIT, GLOBAL_LIMIT, evaluateLoginLimit, limitFor, retryAfterMinutes, unblockingFailureIndex } from "@/lib/auth/rate-limit";
 
 describe("rate-limit 판정 (카운트는 현재 시도 포함)", () => {
   it("IP 실패 5회까지 허용", () => {
@@ -27,5 +27,22 @@ describe("rate-limit 창 만료 계산", () => {
   });
   it("5분 경과 -> 10분", () => {
     expect(retryAfterMinutes(oldest, new Date(oldest.getTime() + 5 * 60_000))).toBe(10);
+  });
+});
+
+describe("rate-limit 해제 기준 행", () => {
+  it("범위별 한도", () => {
+    expect(limitFor("ip")).toBe(IP_LIMIT);
+    expect(limitFor("global")).toBe(GLOBAL_LIMIT);
+  });
+  it("실제 실패가 한도와 같으면 가장 오래된 행(0)이 만료될 때 해제", () => {
+    expect(unblockingFailureIndex(5, 5)).toBe(0);
+  });
+  it("실제 실패가 한도보다 많으면 (실패 수 - 한도 + 1)번째 행", () => {
+    expect(unblockingFailureIndex(7, 5)).toBe(2);
+    expect(unblockingFailureIndex(32, 30)).toBe(2);
+  });
+  it("경쟁으로 한도 미만이면 0으로 클램프", () => {
+    expect(unblockingFailureIndex(3, 5)).toBe(0);
   });
 });

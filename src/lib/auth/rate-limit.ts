@@ -16,9 +16,21 @@ export function evaluateLoginLimit(counts: {
   return { blocked: false, reason: null };
 }
 
-/** 창 안에서 가장 오래된 실패가 만료될 때까지 남은 분(올림, 최소 1) */
-export function retryAfterMinutes(oldestFailureInWindow: Date, now: Date): number {
-  const unblockAt = oldestFailureInWindow.getTime() + WINDOW_MINUTES * 60_000;
+export function limitFor(reason: "ip" | "global"): number {
+  return reason === "ip" ? IP_LIMIT : GLOBAL_LIMIT;
+}
+
+/**
+ * 차단 중인 범위의 "실제" 실패 수(차단된 시도 행 제외)에서, 만료되면 다시 한도 미만(≤ limit-1)이 되는
+ * 실패의 위치(오래된 순, 0부터). 즉 (realCount - limit + 1)번째로 오래된 행의 인덱스.
+ */
+export function unblockingFailureIndex(realCount: number, limit: number): number {
+  return Math.max(0, realCount - limit);
+}
+
+/** 창 안에서 해당 실패가 만료될 때까지 남은 분(올림, 최소 1) */
+export function retryAfterMinutes(failureAt: Date, now: Date): number {
+  const unblockAt = failureAt.getTime() + WINDOW_MINUTES * 60_000;
   const minutes = Math.ceil((unblockAt - now.getTime()) / 60_000);
   return Math.max(1, minutes);
 }

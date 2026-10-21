@@ -7,7 +7,9 @@ import { verifyAdminCredentials } from "@/lib/auth/password";
 import {
   WINDOW_MINUTES,
   evaluateLoginLimit,
+  limitFor,
   retryAfterMinutes,
+  unblockingFailureIndex,
 } from "@/lib/auth/rate-limit";
 import { createSession, deleteSession } from "@/lib/auth/session";
 import { requireSession } from "@/lib/auth/dal";
@@ -56,16 +58,23 @@ export async function login(
   ]);
   const limit = evaluateLoginLimit({ ipFailures, globalFailures });
   if (limit.blocked) {
-    const oldest = await db.loginAttempt.findFirst({
-      where: {
-        success: false,
-        createdAt: { gte: since },
-        ...(limit.reason === "ip" ? { ipHash } : {}),
-      },
+    // 차단된 시도는 기록으로 남기지 않는다(남기면 재시도마다 잠금이 연장된다)
+    await db.loginAttempt.delete({ where: { id: attempt.id } });
+    const where = {
+      success: false,
+      createdAt: { gte: since },
+      ...(limit.reason === "ip" ? { ipHash } : {}),
+    };
+    // 실제 실패 수가 (한도 - 1) 이하가 되려면 (실제 수 - 한도 + 1)번째로 오래된 실패가 만료되어야 한다
+    const realCount = await db.loginAttempt.count({ where });
+    const [blocking] = await db.loginAttempt.findMany({
+      where,
       orderBy: { createdAt: "asc" },
+      skip: unblockingFailureIndex(realCount, limitFor(limit.reason)),
+      take: 1,
       select: { createdAt: true },
     });
-    const minutes = retryAfterMinutes(oldest?.createdAt ?? attempt.createdAt, new Date());
+    const minutes = retryAfterMinutes(blocking?.createdAt ?? attempt.createdAt, new Date());
     return { ok: false, error: `로그인 시도가 너무 많습니다. ${minutes}분 후 다시 시도하세요` };
   }
 

@@ -83,6 +83,56 @@ describe("login", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  it("차단 중 재시도는 실패 행을 늘리지 않는다", async () => {
+    for (let i = 0; i < 5; i++) await fail();
+    expect(await db.loginAttempt.count({ where: { success: false } })).toBe(5);
+    for (let i = 0; i < 3; i++) await fail();
+    expect(await db.loginAttempt.count({ where: { success: false } })).toBe(5);
+  });
+
+  it("가장 오래된 실패가 창을 벗어나면 다시 로그인할 수 있다", async () => {
+    for (let i = 0; i < 5; i++) await fail();
+    await fail(); // 차단
+    const oldest = await db.loginAttempt.findFirstOrThrow({ orderBy: { createdAt: "asc" } });
+    await db.loginAttempt.update({
+      where: { id: oldest.id },
+      data: { createdAt: new Date(Date.now() - 15 * 60_000 - 1000) },
+    });
+    // 창 안 실패 4개 -> 통과(실패 시도는 비밀번호 오류 메시지)
+    expect(await fail()).toEqual({ ok: false, error: MSG });
+  });
+
+  it("안내 분은 실제 해제까지 남은 시간(올림)이다", async () => {
+    for (let i = 0; i < 5; i++) await fail();
+    // 실패 5개를 각각 3, 5, 7, 9, 11분 전으로 조정 -> 가장 오래된(11분 전)이 4분 뒤 만료
+    const rows = await db.loginAttempt.findMany({ orderBy: { createdAt: "asc" } });
+    const ages = [11, 9, 7, 5, 3];
+    for (const [i, r] of rows.entries()) {
+      await db.loginAttempt.update({
+        where: { id: r.id },
+        data: { createdAt: new Date(Date.now() - ages[i] * 60_000 - 10_000) },
+      });
+    }
+    const r = await fail();
+    expect(r).toEqual({ ok: false, error: "로그인 시도가 너무 많습니다. 4분 후 다시 시도하세요" });
+    // 차단 중 반복해도 같은 기준(행이 늘지 않으므로)
+    expect(await fail()).toEqual(r);
+  });
+
+  it("실제 실패가 한도를 넘어 있으면 (실패 수 - 한도 + 1)번째 행 기준으로 안내한다", async () => {
+    await fail();
+    const { ipHash: h } = await db.loginAttempt.findFirstOrThrow();
+    await db.loginAttempt.deleteMany();
+    // 같은 IP의 실제 실패 7개: 14, 12, 10, 8, 6, 4, 2분 전
+    for (const m of [14, 12, 10, 8, 6, 4, 2]) {
+      await db.loginAttempt.create({
+        data: { ipHash: h, success: false, createdAt: new Date(Date.now() - m * 60_000 - 10_000) },
+      });
+    }
+    // 실제 4개 이하가 되려면 7 - 5 + 1 = 3번째로 오래된 행(10분 전)까지 만료되어야 한다 -> 5분 뒤
+    expect(await fail()).toEqual({ ok: false, error: "로그인 시도가 너무 많습니다. 5분 후 다시 시도하세요" });
+  });
+
   it("다른 IP는 IP 한도에 영향받지 않는다", async () => {
     for (let i = 0; i < 6; i++) await fail();
     testHeaders.set("x-real-ip", "8.8.8.8");
@@ -93,7 +143,8 @@ describe("login", () => {
     const spy = vi.spyOn(bcrypt, "compare");
     await Promise.all(Array.from({ length: 10 }, () => fail()));
     expect(spy.mock.calls.length).toBeLessThanOrEqual(5);
-    expect(await db.loginAttempt.count()).toBe(10);
+    // 차단된 시도의 행은 삭제되므로, 남은 행은 bcrypt를 실행한 시도뿐이다
+    expect(await db.loginAttempt.count()).toBe(spy.mock.calls.length);
   });
 
   it("로그인 시도 시 24시간 지난 시도와 만료 세션을 정리한다", async () => {
