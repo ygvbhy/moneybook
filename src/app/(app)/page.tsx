@@ -12,13 +12,16 @@ import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
 import { getBudgetPage } from "@/server/budgets";
 import { getCategorySpending, getMonthSummary, getRecentTransactions } from "@/server/dashboard";
+import { materializeRecurring } from "@/server/recurring";
 
 export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   await requireSession();
+  const today = todayInSeoul();
+  await materializeRecurring(today);
   const sp = await searchParams;
   const month = normalizeMonthParam(
     typeof sp.month === "string" ? sp.month : undefined,
-    todayInSeoul(),
+    today,
   );
 
   const [summary, spending, recent, budget] = await Promise.all([

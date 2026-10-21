@@ -2,6 +2,7 @@ import { requireSession } from "@/lib/auth/dal";
 import { normalizeMonthParam, todayInSeoul } from "@/lib/date";
 import { getBudgetPage } from "@/server/budgets";
 import { listCategories } from "@/server/categories";
+import { materializeRecurring } from "@/server/recurring";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { PageHeader } from "@/components/app-shell/page-header";
 import { CategoryBudgetList } from "@/components/budget/category-budget-list";
@@ -10,10 +11,12 @@ import { TotalBudgetForm } from "@/components/budget/total-budget-form";
 
 export default async function BudgetsPage({ searchParams }: PageProps<"/budgets">) {
   await requireSession();
+  const today = todayInSeoul();
+  await materializeRecurring(today);
   const sp = await searchParams;
   const month = normalizeMonthParam(
     typeof sp.month === "string" ? sp.month : undefined,
-    todayInSeoul(),
+    today,
   );
   const [page, categories] = await Promise.all([getBudgetPage(month), listCategories()]);
 

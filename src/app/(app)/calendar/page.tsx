@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/auth/dal";
 import { isValidDateString, monthOf, normalizeMonthParam, todayInSeoul } from "@/lib/date";
 import { getDailyTotals, listTransactionsByDate } from "@/server/calendar";
+import { materializeRecurring } from "@/server/recurring";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { PageHeader } from "@/components/app-shell/page-header";
 import { CalendarGrid } from "@/components/calendar/calendar-grid";
@@ -8,8 +9,9 @@ import { DayPanel } from "@/components/calendar/day-panel";
 
 export default async function CalendarPage({ searchParams }: PageProps<"/calendar">) {
   await requireSession();
-  const sp = await searchParams;
   const today = todayInSeoul();
+  await materializeRecurring(today);
+  const sp = await searchParams;
   const month = normalizeMonthParam(typeof sp.month === "string" ? sp.month : undefined, today);
   const dateParam = typeof sp.date === "string" ? sp.date : undefined;
   const date =

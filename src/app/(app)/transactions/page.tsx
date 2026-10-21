@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth/dal";
 import { todayInSeoul } from "@/lib/date";
 import { formatKRW } from "@/lib/money";
 import { listCategories } from "@/server/categories";
+import { materializeRecurring } from "@/server/recurring";
 import { listTransactions, parseListParams } from "@/server/transactions";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { PageEmpty, PageHeader } from "@/components/app-shell/page-header";
@@ -12,8 +13,10 @@ import { TransactionTable } from "@/components/transaction/transaction-table";
 
 export default async function TransactionsPage({ searchParams }: PageProps<"/transactions">) {
   await requireSession();
+  const today = todayInSeoul();
+  await materializeRecurring(today);
   const sp = await searchParams;
-  const params = await parseListParams(sp, todayInSeoul());
+  const params = await parseListParams(sp, today);
   const [transactions, categories] = await Promise.all([
     listTransactions(params),
     listCategories(),
