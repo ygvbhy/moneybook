@@ -145,16 +145,18 @@ export function CalendarGrid({ month, selectedDate, today, totals }: Props) {
                         <span className="size-1.5 rounded-full bg-primary" />
                       </span>
                       {t.expense > 0 && (
-                        <span aria-hidden className="text-[10px] leading-tight text-expense tabular-nums sm:text-xs">
-                          -{formatCompactKRW(t.expense)}
+                        <span aria-hidden className="max-w-full truncate text-[10px] leading-tight text-expense tabular-nums sm:text-xs">
+                          <span className="sm:hidden">-{formatCompactKRW(t.expense)}</span>
+                          <span className="hidden sm:inline">-{formatKRW(t.expense)}</span>
                         </span>
                       )}
                       {t.income > 0 && (
                         <span
                           aria-hidden
-                          className="hidden text-[10px] leading-tight text-income tabular-nums min-[420px]:block sm:text-xs"
+                          className="hidden max-w-full truncate text-[10px] leading-tight text-income tabular-nums min-[420px]:block sm:text-xs"
                         >
-                          +{formatCompactKRW(t.income)}
+                          <span className="sm:hidden">+{formatCompactKRW(t.income)}</span>
+                          <span className="hidden sm:inline">+{formatKRW(t.income)}</span>
                         </span>
                       )}
                     </>
