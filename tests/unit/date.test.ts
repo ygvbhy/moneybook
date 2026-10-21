@@ -85,4 +85,24 @@ describe("date: 잘못된 month 파라미터는 fallback", () => {
     expect(isValidDateString("2028-02-29")).toBe(true);
     expect(isValidDateString("2026-1-1")).toBe(false);
   });
+  it("연도는 1900~9998만 유효", () => {
+    expect(parseYearMonth("1900-01")).toEqual({ year: 1900, month: 1 });
+    expect(parseYearMonth("9998-12")).toEqual({ year: 9998, month: 12 });
+    expect(parseYearMonth("1899-12")).toBeNull();
+    expect(parseYearMonth("0050-05")).toBeNull();
+    expect(parseYearMonth("9999-12")).toBeNull();
+  });
+  it("범위 밖 연도의 month 파라미터는 현재 월로 대체", () => {
+    for (const v of ["0050-05", "9999-12", "1899-12"]) {
+      expect(normalizeMonthParam(v, today)).toBe("2026-10");
+    }
+    expect(normalizeMonthParam("1900-01", today)).toBe("1900-01");
+    expect(normalizeMonthParam("9998-12", today)).toBe("9998-12");
+  });
+  it("경계에서의 shiftMonth / monthRange", () => {
+    expect(shiftMonth("9998-12", 1)).toBe("9999-01"); // 계산값으로만 허용
+    expect(shiftMonth("1900-01", -1)).toBe("1899-12");
+    expect(monthRange("9998-12")).toEqual({ start: "9998-12-01", endExclusive: "9999-01-01" });
+    expect(() => toDbDate(monthRange("9998-12").endExclusive)).not.toThrow();
+  });
 });

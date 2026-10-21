@@ -30,7 +30,12 @@ export function isValidDateString(value: unknown): value is string {
   );
 }
 
-/** "YYYY-MM"이 유효하면 {year, month}, 아니면 null */
+// Date.UTC는 0~99년을 1900년대로 바꾸고, 9999-12의 다음 달(10000-01)은 toDbDate가 거부한다.
+// 그래서 유효 연도는 1900~9998로 제한한다 (shiftMonth("9998-12", 1) = "9999-01"은 계산값으로만 허용).
+const MIN_YEAR = 1900;
+const MAX_YEAR = 9998;
+
+/** "YYYY-MM"이 유효(연도 1900~9998)하면 {year, month}, 아니면 null */
 export function parseYearMonth(
   value: unknown,
 ): { year: number; month: number } | null {
@@ -39,7 +44,7 @@ export function parseYearMonth(
   if (!m) return null;
   const year = Number(m[1]);
   const month = Number(m[2]);
-  if (year < 1 || month < 1 || month > 12) return null;
+  if (year < MIN_YEAR || year > MAX_YEAR || month < 1 || month > 12) return null;
   return { year, month };
 }
 
