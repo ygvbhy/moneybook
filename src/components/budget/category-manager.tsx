@@ -26,6 +26,7 @@ import {
   restoreCategory,
 } from "@/server/actions/categories";
 import { TYPE_LABELS } from "@/lib/labels";
+import { TYPE_TOGGLE_ITEM_CLASS } from "@/lib/type-toggle";
 import type { ActionResult } from "@/lib/action-result";
 import type { CategoryDto } from "@/server/categories";
 
@@ -204,8 +205,12 @@ export function CategoryManager({ categories }: { categories: CategoryDto[] }) {
           }}
           aria-label="카테고리 유형"
         >
-          <ToggleGroupItem value="EXPENSE">{TYPE_LABELS.EXPENSE}</ToggleGroupItem>
-          <ToggleGroupItem value="INCOME">{TYPE_LABELS.INCOME}</ToggleGroupItem>
+          <ToggleGroupItem value="EXPENSE" className={TYPE_TOGGLE_ITEM_CLASS.EXPENSE}>
+            {TYPE_LABELS.EXPENSE}
+          </ToggleGroupItem>
+          <ToggleGroupItem value="INCOME" className={TYPE_TOGGLE_ITEM_CLASS.INCOME}>
+            {TYPE_LABELS.INCOME}
+          </ToggleGroupItem>
         </ToggleGroup>
 
         <form

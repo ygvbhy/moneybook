@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { AmountInput } from "@/components/amount-input";
 import { PAYMENT_METHOD_LABELS, TYPE_LABELS } from "@/lib/labels";
+import { TYPE_TOGGLE_ITEM_CLASS } from "@/lib/type-toggle";
 import { cn } from "@/lib/utils";
 import {
   PAYMENT_METHODS,
@@ -165,7 +166,6 @@ export function TransactionForm({
           <ToggleGroup
             type="single"
             variant="outline"
-            spacing={0}
             value={field.value}
             onValueChange={(v) => {
               if (!v || v === field.value) return;
@@ -176,7 +176,7 @@ export function TransactionForm({
             className="w-full"
           >
             {TRANSACTION_TYPES.map((t) => (
-              <ToggleGroupItem key={t} value={t} className="flex-1">
+              <ToggleGroupItem key={t} value={t} className={cn("flex-1", TYPE_TOGGLE_ITEM_CLASS[t])}>
                 {TYPE_LABELS[t]}
               </ToggleGroupItem>
             ))}
