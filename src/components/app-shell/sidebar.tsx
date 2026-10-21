@@ -57,9 +57,12 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
           )}
         >
           {!collapsed && (
-            <span className="whitespace-nowrap text-lg font-semibold tracking-tight">
-              Personal Ledger
-            </span>
+            <Link
+              href="/"
+              className="whitespace-nowrap rounded-md text-lg font-semibold tracking-tight outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              Moneybook
+            </Link>
           )}
           <Button
             type="button"
