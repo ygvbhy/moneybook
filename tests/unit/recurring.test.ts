@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dueDates, occurrenceIn, occurrenceOnOrAfter } from "@/lib/recurring";
+import { dueDates, occurrenceIn, occurrenceOnOrAfter, upcomingIn } from "@/lib/recurring";
 
 describe("recurring: occurrenceIn", () => {
   it.each([
@@ -58,5 +58,46 @@ describe("recurring: dueDates", () => {
       dates: ["2026-12-31", "2027-01-31", "2027-02-28"],
       next: "2027-03-31",
     });
+  });
+});
+
+describe("recurring: upcomingIn", () => {
+  const make = (id: string, dayOfMonth: number, nextRunOn: string) => ({
+    id,
+    item: `item-${id}`,
+    categoryName: "주거",
+    amount: 1000,
+    dayOfMonth,
+    nextRunOn,
+  });
+  const dates = (month: string, items: ReturnType<typeof make>[]) =>
+    upcomingIn(month, items).map((u) => u.date);
+
+  it("같은 달, 발생일 >= nextRunOn이면 포함", () => {
+    expect(dates("2026-10", [make("a", 25, "2026-10-25")])).toEqual(["2026-10-25"]);
+  });
+  it("이미 등록된 달은 제외", () => {
+    expect(dates("2026-10", [make("a", 21, "2026-11-21")])).toEqual([]);
+  });
+  it("다음 달은 포함", () => {
+    expect(dates("2026-11", [make("a", 21, "2026-11-21")])).toEqual(["2026-11-21"]);
+  });
+  it("이전 달은 제외", () => {
+    expect(dates("2026-09", [make("a", 21, "2026-10-25")])).toEqual([]);
+  });
+  it("말일 보정 (31일 -> 2월 28일)", () => {
+    expect(dates("2027-02", [make("a", 31, "2026-11-30")])).toEqual(["2027-02-28"]);
+  });
+  it("여러 항목은 날짜 오름차순, 같은 날짜는 모두 포함", () => {
+    const result = upcomingIn("2026-11", [
+      make("a", 25, "2026-10-25"),
+      make("b", 5, "2026-10-05"),
+      make("c", 25, "2026-10-25"),
+    ]);
+    expect(result.map((u) => [u.date, u.recurringId])).toEqual([
+      ["2026-11-05", "b"],
+      ["2026-11-25", "a"],
+      ["2026-11-25", "c"],
+    ]);
   });
 });

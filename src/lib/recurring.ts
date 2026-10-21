@@ -29,3 +29,39 @@ export function dueDates(
   }
   return { dates, next: current };
 }
+
+export type UpcomingItem = {
+  date: string;
+  recurringId: string;
+  item: string;
+  categoryName: string;
+  amount: number;
+};
+
+/** month(YYYY-MM)의 예정 발생일. 발생일이 nextRunOn 이상인 항목만, 날짜 오름차순 */
+export function upcomingIn(
+  month: string,
+  items: {
+    id: string;
+    item: string;
+    categoryName: string;
+    amount: number;
+    dayOfMonth: number;
+    nextRunOn: string;
+  }[],
+): UpcomingItem[] {
+  const result: UpcomingItem[] = [];
+  for (const r of items) {
+    const date = occurrenceIn(month, r.dayOfMonth);
+    if (date >= r.nextRunOn) {
+      result.push({
+        date,
+        recurringId: r.id,
+        item: r.item,
+        categoryName: r.categoryName,
+        amount: r.amount,
+      });
+    }
+  }
+  return result.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
