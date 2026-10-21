@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+datasource db {
+  provider = "postgresql"
+  // URL은 prisma.config.ts
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CREDIT_CARD
+  DEBIT_CARD
+  OTHER
+}
+
+model Category {
+  id         String          @id @default(cuid())
+  name       String
+  type       TransactionType
+  sortOrder  Int             @default(0)
+  archivedAt DateTime?       @db.Timestamptz
+  createdAt  DateTime        @default(now()) @db.Timestamptz
+  transactions    Transaction[]
+  categoryBudgets CategoryBudget[]
+  @@unique([type, name])
+}
+
+model Transaction {
+  id            String          @id @default(cuid())
+  type          TransactionType
+  amount        Int
+  occurredOn    DateTime        @db.Date
+  categoryId    String
+  category      Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  merchant      String?
+  item          String?
+  purpose       String?
+  paymentMethod PaymentMethod?
+  memo          String?
+  createdAt     DateTime        @default(now()) @db.Timestamptz
+  updatedAt     DateTime        @updatedAt @db.Timestamptz
+  @@index([occurredOn])
+  @@index([categoryId, occurredOn])
+}
+
+model MonthlyBudget {            // 월 전체 지출 예산 (월당 1행)
+  yearMonth   String   @id @db.Char(7)   // "2026-10"
+  totalAmount Int
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+}
+
+model CategoryBudget {           // 월 × 지출 카테고리 예산
+  id         String   @id @default(cuid())
+  yearMonth  String   @db.Char(7)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  amount     Int
+  updatedAt  DateTime @updatedAt @db.Timestamptz
+  @@unique([yearMonth, categoryId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  expiresAt DateTime @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  ipHash    String
+  success   Boolean
+  createdAt DateTime @default(now()) @db.Timestamptz
+  @@index([createdAt])
+  @@index([ipHash, createdAt])
+}
