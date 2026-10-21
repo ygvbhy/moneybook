@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -29,7 +29,6 @@ type Props = {
 export function TransactionFilters({ categories, type, categoryId, q, sort }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [query, setQuery] = useState(q ?? "");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [lastPushedQ, setLastPushedQ] = useState<string | undefined>(undefined);
@@ -46,7 +45,7 @@ export function TransactionFilters({ categories, type, categoryId, q, sort }: Pr
   useEffect(() => () => clearTimeout(timer.current), []);
 
   function update(changes: Record<string, string | undefined>) {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(window.location.search); // 디바운스 중 바뀐 필터를 지우지 않도록 실행 시점의 URL 기준
     for (const [k, v] of Object.entries(changes)) {
       if (v === undefined || v === "") params.delete(k);
       else params.set(k, v);
