@@ -19,3 +19,9 @@ export function formatKRW(n: number): string {
 export function formatCompactKRW(n: number): string {
   return compact.format(n);
 }
+
+/** 증감 표기: 증가 "▲12,000원", 감소 "▼12,000원", 0은 "변동 없음" */
+export function formatKRWDelta(n: number): string {
+  if (n === 0) return "변동 없음";
+  return `${n > 0 ? "▲" : "▼"}${krw.format(Math.abs(n))}원`;
+}

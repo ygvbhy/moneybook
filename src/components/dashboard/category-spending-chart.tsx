@@ -1,7 +1,7 @@
 "use client";
 
 import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatCompactKRW, formatKRW } from "@/lib/money";
+import { formatCompactKRW, formatKRW, formatKRWDelta } from "@/lib/money";
 
 export type CategorySpendingDatum = {
   categoryId: string;
@@ -10,9 +10,11 @@ export type CategorySpendingDatum = {
   /** 카테고리 예산 사용률(%), 예산이 없으면 null */
   rate: number | null;
   over: boolean;
+  /** 전월 대비 지출 증감, 비교할 전월이 없으면 null */
+  delta: number | null;
 };
 
-const ROW_HEIGHT = 40;
+const ROW_HEIGHT = 48;
 
 function label(d: CategorySpendingDatum) {
   return d.rate === null ? `${formatKRW(d.total)}원` : `${formatKRW(d.total)}원 · ${d.rate.toFixed(1)}%`;
@@ -34,6 +36,9 @@ function ChartTooltip({
       <p className="text-muted-foreground tabular-nums">
         {d.rate === null ? "예산 없음" : `예산 사용률 ${d.rate.toFixed(1)}%${d.over ? " (초과)" : ""}`}
       </p>
+      {d.delta !== null && (
+        <p className="text-muted-foreground tabular-nums">전월 대비 {formatKRWDelta(d.delta)}</p>
+      )}
     </div>
   );
 }
@@ -60,7 +65,7 @@ export function CategorySpendingChart({ data }: { data: CategorySpendingDatum[] 
           <BarChart
             data={data}
             layout="vertical"
-            margin={{ top: 0, right: 128, bottom: 0, left: 0 }}
+            margin={{ top: 0, right: 152, bottom: 0, left: 0 }}
             barCategoryGap={8}
           >
             <XAxis type="number" hide domain={[0, "dataMax"]} tickFormatter={formatCompactKRW} />
@@ -101,7 +106,14 @@ export function CategorySpendingChart({ data }: { data: CategorySpendingDatum[] 
                       fontSize={12}
                       className="viz-label"
                     >
-                      {label(d)}
+                      <tspan x={Number(x) + Number(width) + 6} dy={d.delta === null ? 0 : "-0.6em"}>
+                        {label(d)}
+                      </tspan>
+                      {d.delta !== null && (
+                        <tspan x={Number(x) + Number(width) + 6} dy="1.4em" fontSize={11}>
+                          전월 대비 {formatKRWDelta(d.delta)}
+                        </tspan>
+                      )}
                     </text>
                   );
                 }}
@@ -117,6 +129,7 @@ export function CategorySpendingChart({ data }: { data: CategorySpendingDatum[] 
             <th scope="col">카테고리</th>
             <th scope="col">지출</th>
             <th scope="col">예산 사용률</th>
+            <th scope="col">전월 대비</th>
           </tr>
         </thead>
         <tbody>
@@ -125,6 +138,7 @@ export function CategorySpendingChart({ data }: { data: CategorySpendingDatum[] 
               <th scope="row">{d.name}</th>
               <td>{formatKRW(d.total)}원</td>
               <td>{d.rate === null ? "예산 없음" : `${d.rate.toFixed(1)}%${d.over ? " 초과" : ""}`}</td>
+              <td>{d.delta === null ? "비교 불가" : formatKRWDelta(d.delta)}</td>
             </tr>
           ))}
         </tbody>

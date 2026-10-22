@@ -67,6 +67,16 @@ export function shiftMonth(ym: string, delta: number): string {
   return `${String(d.getUTCFullYear()).padStart(4, "0")}-${pad(d.getUTCMonth() + 1)}`;
 }
 
+/** month를 끝으로 과거 count개월을 오래된 순으로. 유효 연도(1900~) 밖의 달은 뺀다 */
+export function recentMonths(month: string, count: number): string[] {
+  const months: string[] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const m = shiftMonth(month, -i);
+    if (isValidYearMonth(m)) months.push(m);
+  }
+  return months;
+}
+
 /** "YYYY-MM"의 말일(일자 숫자) */
 export function lastDayOfMonth(ym: string): number {
   const p = parseYearMonth(ym);

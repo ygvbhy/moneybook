@@ -6,7 +6,7 @@ import {
   updateTransaction,
 } from "@/server/actions/transactions";
 import { archiveCategory, createCategory } from "@/server/actions/categories";
-import { getMonthSummary, getRecentCategoryIds } from "@/server/dashboard";
+import { getMonthSummary, getMonthlyTrend, getRecentCategoryIds } from "@/server/dashboard";
 import { getDailyTotals, listTransactionsByDate } from "@/server/calendar";
 import { getTransaction, listTransactions, parseListParams } from "@/server/transactions";
 import { categoryId, loginAsTest, resetDb, txInput } from "../setup/db";
@@ -79,6 +79,39 @@ describe("거래와 집계", () => {
       expect(r.fieldErrors?.occurredOn?.length).toBeGreaterThan(0);
     }
     expect(await db.transaction.count()).toBe(0);
+  });
+});
+
+describe("월별 추이", () => {
+  it("최근 6개월을 월별로 집계하고 범위 밖 거래는 제외하며 마지막 달은 월 요약과 같다", async () => {
+    await create({ occurredOn: "2026-04-30", amount: 7_000 });
+    await create({ occurredOn: "2026-05-31", amount: 1_000 });
+    await create({ occurredOn: "2026-06-01", amount: 2_000 });
+    await create({ occurredOn: "2026-10-31", amount: 3_000 });
+    const inc = await createTransaction(
+      txInput({ type: "INCOME", categoryId: salary, occurredOn: "2026-09-15", amount: 50_000 }),
+    );
+    expect(inc.ok).toBe(true);
+
+    const trend = await getMonthlyTrend("2026-10");
+    expect(trend).toEqual([
+      { month: "2026-05", income: 0, expense: 1_000 },
+      { month: "2026-06", income: 0, expense: 2_000 },
+      { month: "2026-07", income: 0, expense: 0 },
+      { month: "2026-08", income: 0, expense: 0 },
+      { month: "2026-09", income: 50_000, expense: 0 },
+      { month: "2026-10", income: 0, expense: 3_000 },
+    ]);
+    const { income, expense } = await getMonthSummary("2026-10");
+    expect(trend[5]).toEqual({ month: "2026-10", income, expense });
+  });
+
+  it("1900년 초반 월은 1900년 이전 달 없이 조회된다", async () => {
+    await create({ occurredOn: "1900-02-10", amount: 4_000 });
+    expect(await getMonthlyTrend("1900-02")).toEqual([
+      { month: "1900-01", income: 0, expense: 0 },
+      { month: "1900-02", income: 0, expense: 4_000 },
+    ]);
   });
 });
 

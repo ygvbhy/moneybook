@@ -8,6 +8,7 @@ import {
   monthRange,
   normalizeMonthParam,
   parseYearMonth,
+  recentMonths,
   shiftMonth,
   toDbDate,
   todayInSeoul,
@@ -119,5 +120,25 @@ describe("date: 잘못된 month 파라미터는 fallback", () => {
     expect(shiftMonth("1900-01", -1)).toBe("1899-12");
     expect(monthRange("9998-12")).toEqual({ start: "9998-12-01", endExclusive: "9999-01-01" });
     expect(() => toDbDate(monthRange("9998-12").endExclusive)).not.toThrow();
+  });
+});
+
+describe("date: 최근 N개월 목록", () => {
+  it("2026-10 기준 6개월은 2026-05 ~ 2026-10 (오래된 순)", () => {
+    expect(recentMonths("2026-10", 6)).toEqual([
+      "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10",
+    ]);
+  });
+  it("연도 경계: 2026-02 기준 6개월은 2025-09 ~ 2026-02", () => {
+    const months = recentMonths("2026-02", 6);
+    expect(months[0]).toBe("2025-09");
+    expect(months[5]).toBe("2026-02");
+    expect(months).toHaveLength(6);
+  });
+  it("1900년 이전 달은 뺀다 (1900-02 -> 1900-01, 1900-02)", () => {
+    expect(recentMonths("1900-02", 6)).toEqual(["1900-01", "1900-02"]);
+  });
+  it("count 1이면 해당 월만", () => {
+    expect(recentMonths("2026-10", 1)).toEqual(["2026-10"]);
   });
 });

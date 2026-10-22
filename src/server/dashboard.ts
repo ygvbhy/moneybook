@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { monthRange, toDbDate } from "@/lib/date";
+import { fromDbDate, monthRange, recentMonths, toDbDate } from "@/lib/date";
+import { monthlyTotals, type MonthTotal } from "@/lib/aggregate";
 import { toTransactionDto, type TransactionDto } from "@/server/transactions";
 
 function monthWhere(month: string) {
@@ -50,6 +51,29 @@ export async function getCategorySpending(month: string): Promise<CategorySpendi
       total: g._sum.amount ?? 0,
     }))
     .sort((a, b) => b.total - a.total || a.categoryId.localeCompare(b.categoryId));
+}
+
+/** 선택 월을 끝으로 최근 count개월의 월별 수입·지출 합계 (오래된 순, 거래 없는 달은 0) */
+export async function getMonthlyTrend(month: string, count = 6): Promise<MonthTotal[]> {
+  const months = recentMonths(month, count);
+  const groups = await db.transaction.groupBy({
+    by: ["occurredOn", "type"],
+    where: {
+      occurredOn: {
+        gte: toDbDate(monthRange(months[0]).start),
+        lt: toDbDate(monthRange(month).endExclusive),
+      },
+    },
+    _sum: { amount: true },
+  });
+  return monthlyTotals(
+    groups.map((g) => ({
+      type: g.type,
+      amount: g._sum.amount ?? 0,
+      occurredOn: fromDbDate(g.occurredOn),
+    })),
+    months,
+  );
 }
 
 /** 선택 월 안에서 가장 최근 거래 (occurredOn desc, createdAt desc) */

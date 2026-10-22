@@ -1,5 +1,5 @@
 import { requireSession } from "@/lib/auth/dal";
-import { normalizeMonthParam, todayInSeoul } from "@/lib/date";
+import { isValidYearMonth, normalizeMonthParam, shiftMonth, todayInSeoul } from "@/lib/date";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { PageHeader } from "@/components/app-shell/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,12 +8,18 @@ import {
   CategorySpendingChart,
   type CategorySpendingDatum,
 } from "@/components/dashboard/category-spending-chart";
+import { MonthlyTrendChart } from "@/components/dashboard/monthly-trend-chart";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
 import { UpcomingRecurringCard } from "@/components/dashboard/upcoming-recurring-card";
 import { upcomingIn } from "@/lib/recurring";
 import { getBudgetPage } from "@/server/budgets";
-import { getCategorySpending, getMonthSummary, getRecentTransactions } from "@/server/dashboard";
+import {
+  getCategorySpending,
+  getMonthSummary,
+  getMonthlyTrend,
+  getRecentTransactions,
+} from "@/server/dashboard";
 import { listRecurring, materializeRecurring } from "@/server/recurring";
 
 export default async function DashboardPage({ searchParams }: PageProps<"/">) {
@@ -26,14 +32,27 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     today,
   );
 
-  const [summary, spending, recent, budget, recurring] = await Promise.all([
+  // 1900-01은 전월이 유효 범위 밖이라 비교하지 않는다
+  const prevMonth = shiftMonth(month, -1);
+  const [summary, spending, prevSpending, trend, recent, budget, recurring] = await Promise.all([
     getMonthSummary(month),
     getCategorySpending(month),
+    isValidYearMonth(prevMonth) ? getCategorySpending(prevMonth) : Promise.resolve([]),
+    getMonthlyTrend(month),
     getRecentTransactions(month, 5),
     getBudgetPage(month),
     listRecurring(),
   ]);
   const upcoming = upcomingIn(month, recurring);
+
+  const prevTrend = trend.find((t) => t.month === prevMonth);
+  const prev = prevTrend && {
+    income: prevTrend.income,
+    expense: prevTrend.expense,
+    net: prevTrend.income - prevTrend.expense,
+  };
+  const prevByCategory = new Map(prevSpending.map((s) => [s.categoryId, s.total]));
+  const hasTrend = trend.some((t) => t.income > 0 || t.expense > 0);
 
   const budgetByCategory = new Map(budget.categories.map((c) => [c.categoryId, c]));
   const chartData: CategorySpendingDatum[] = spending.map((s) => {
@@ -44,6 +63,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       total: s.total,
       rate: b?.rate ?? null,
       over: b?.over ?? false,
+      delta: isValidYearMonth(prevMonth) ? s.total - (prevByCategory.get(s.categoryId) ?? 0) : null,
     };
   });
 
@@ -52,9 +72,24 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       <PageHeader title="대시보드">
         <MonthSwitcher month={month} basePath="/" searchParams={sp} />
       </PageHeader>
-      <SummaryCards month={month} {...summary} overview={budget.overview} />
+      <SummaryCards month={month} {...summary} overview={budget.overview} prev={prev} />
       <BudgetProgressCard month={month} overview={budget.overview} />
       <UpcomingRecurringCard upcoming={upcoming} />
+      <Card>
+        <CardHeader>
+          <CardTitle>월별 추이</CardTitle>
+          <p className="text-xs text-muted-foreground">최근 6개월</p>
+        </CardHeader>
+        <CardContent>
+          {hasTrend ? (
+            <MonthlyTrendChart data={trend} />
+          ) : (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              최근 6개월 거래가 없습니다
+            </p>
+          )}
+        </CardContent>
+      </Card>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>

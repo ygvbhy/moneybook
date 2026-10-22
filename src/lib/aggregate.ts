@@ -1,3 +1,5 @@
+import { monthOf } from "@/lib/date";
+
 export type TransactionTypeValue = "INCOME" | "EXPENSE";
 
 export type AggregateRow = {
@@ -43,4 +45,23 @@ export function categoryTotals(
   return [...sums]
     .map(([categoryId, total]) => ({ categoryId, total }))
     .sort((a, b) => b.total - a.total || a.categoryId.localeCompare(b.categoryId));
+}
+
+export type MonthTotal = { month: string; income: number; expense: number };
+
+/** months 순서대로 월별 수입·지출 합계 (거래 없는 달은 0, months에 없는 달의 행은 무시) */
+export function monthlyTotals(
+  rows: Pick<AggregateRow, "type" | "amount" | "occurredOn">[],
+  months: string[],
+): MonthTotal[] {
+  const byMonth = new Map<string, MonthTotal>(
+    months.map((month) => [month, { month, income: 0, expense: 0 }]),
+  );
+  for (const r of rows) {
+    const total = byMonth.get(monthOf(r.occurredOn));
+    if (!total) continue;
+    if (r.type === "INCOME") total.income += r.amount;
+    else total.expense += r.amount;
+  }
+  return months.map((month) => byMonth.get(month)!);
 }

@@ -3,6 +3,7 @@ import {
   MAX_AMOUNT,
   formatCompactKRW,
   formatKRW,
+  formatKRWDelta,
   parseAmountInput,
 } from "@/lib/money";
 
@@ -31,5 +32,10 @@ describe("money", () => {
     expect(formatCompactKRW(12000)).toBe("1.2만");
     expect(formatCompactKRW(500)).toBe("500");
     expect(formatCompactKRW(1250000)).toBe("125만");
+  });
+  it("증감 표기: 증가 ▲, 감소 ▼, 0은 변동 없음", () => {
+    expect(formatKRWDelta(12000)).toBe("▲12,000원");
+    expect(formatKRWDelta(-12000)).toBe("▼12,000원");
+    expect(formatKRWDelta(0)).toBe("변동 없음");
   });
 });
