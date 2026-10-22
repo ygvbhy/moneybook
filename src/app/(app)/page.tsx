@@ -10,9 +10,11 @@ import {
 } from "@/components/dashboard/category-spending-chart";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
+import { UpcomingRecurringCard } from "@/components/dashboard/upcoming-recurring-card";
+import { upcomingIn } from "@/lib/recurring";
 import { getBudgetPage } from "@/server/budgets";
 import { getCategorySpending, getMonthSummary, getRecentTransactions } from "@/server/dashboard";
-import { materializeRecurring } from "@/server/recurring";
+import { listRecurring, materializeRecurring } from "@/server/recurring";
 
 export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   await requireSession();
@@ -24,12 +26,14 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     today,
   );
 
-  const [summary, spending, recent, budget] = await Promise.all([
+  const [summary, spending, recent, budget, recurring] = await Promise.all([
     getMonthSummary(month),
     getCategorySpending(month),
     getRecentTransactions(month, 5),
     getBudgetPage(month),
+    listRecurring(),
   ]);
+  const upcoming = upcomingIn(month, recurring);
 
   const budgetByCategory = new Map(budget.categories.map((c) => [c.categoryId, c]));
   const chartData: CategorySpendingDatum[] = spending.map((s) => {
@@ -50,6 +54,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       </PageHeader>
       <SummaryCards month={month} {...summary} overview={budget.overview} />
       <BudgetProgressCard month={month} overview={budget.overview} />
+      <UpcomingRecurringCard upcoming={upcoming} />
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>

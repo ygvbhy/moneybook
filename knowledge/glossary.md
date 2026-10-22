@@ -25,6 +25,6 @@
 | 다음 발생일 | `nextRunOn` | 아직 거래로 만들지 않은 다음 발생일 (커서) |
 | 마지막 발생일 | `lastRunOn` | 마지막으로 거래를 만든 발생일 |
 | 자동 등록 | `materializeRecurring` | 도래한 발생일을 실제 거래로 생성 |
-| 예정 | `upcomingIn`, `UpcomingItem` | 아직 등록 전인 이번 표시 월의 발생일 (캘린더 회색) |
+| 예정 | `upcomingIn`, `UpcomingItem` | 아직 등록 전인 이번 표시 월의 발생일 (캘린더 회색, 대시보드 "남은 고정지출") |
 | 월 | `month`, `yearMonth`, `ym` | `"YYYY-MM"` |
 | 이번 달 / 오늘 | `todayInSeoul()` | 서울 기준 |
