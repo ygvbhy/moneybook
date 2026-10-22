@@ -82,8 +82,9 @@ export async function importTransactionsCsv(text: unknown): Promise<ActionResult
   if (new TextEncoder().encode(text).length > MAX_IMPORT_BYTES) {
     return { ok: false, error: "파일이 너무 큽니다 (최대 800KB)" };
   }
-  const categories = await listCategories();
-  const parsed = parseTransactionsCsv(text, categories);
+  const categories = await runService(() => listCategories());
+  if (!categories.ok) return categories;
+  const parsed = parseTransactionsCsv(text, categories.data ?? []);
   if (!parsed.ok) {
     return {
       ok: false,

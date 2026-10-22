@@ -252,6 +252,12 @@ describe("parseTransactionsCsv 행 처리", () => {
     ]);
     expect(parseTransactionsCsv(`${HEADER}\n2026-10-21,지출,100,식비,,,,,,`, categories).ok).toBe(true);
   });
+  it("헤더 끝의 빈 칸은 무시하고, 그 칸에 값이 있으면 행 오류다", () => {
+    expect(parseTransactionsCsv(`${HEADER},,\n2026-10-21,지출,100,식비,,,,,,,`, categories).ok).toBe(true);
+    expect(failed(`${HEADER},,\n2026-10-21,지출,100,식비,,,,,,,넘침`).rowErrors).toEqual([
+      "2행: 열 개수가 헤더보다 많습니다",
+    ]);
+  });
   it("오류 행이 섞이면 모든 행을 끝까지 검사해 오류만 돌려준다", () => {
     const r = failed(`${HEADER}\n2026-10-21,지출,100,식비,,,,,\nx,지출,100,식비,,,,,\n2026-10-21,지출,y,식비,,,,,`);
     expect(r.error).toBe("2개 행에 오류가 있습니다");

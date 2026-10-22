@@ -151,6 +151,8 @@ export function parseTransactionsCsv(
 
   const [headerRow = [], ...dataRows] = parsed.rows;
   const header = headerRow.map((h) => h.trim());
+  // 엑셀이 남기는 헤더 끝의 빈 칸은 버린다. 그 칸에 값이 있는 행은 아래 넘치는 칸 검사가 잡는다
+  while (header.length > 0 && header[header.length - 1] === "") header.pop();
   const known: readonly string[] = TRANSACTION_CSV_HEADERS;
   const missing = known.filter((h) => !header.includes(h));
   const unknown = header.filter((h) => !known.includes(h));

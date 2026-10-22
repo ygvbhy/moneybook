@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { fromDbDate } from "@/lib/date";
 import { MAX_IMPORT_BYTES, TRANSACTION_CSV_HEADERS, parseCsv } from "@/lib/transaction-csv";
@@ -7,6 +7,7 @@ import {
   exportTransactionsCsv,
   importTransactionsCsv,
 } from "@/server/actions/transactions";
+import * as categoriesSvc from "@/server/categories";
 import { categoryId, loginAsTest, resetDb, txInput } from "../setup/db";
 
 let food: string;
@@ -186,6 +187,16 @@ describe("CSV 가져오기", () => {
     const r = await importTransactionsCsv("a".repeat(MAX_IMPORT_BYTES + 1));
     expect(r).toEqual({ ok: false, error: "파일이 너무 큽니다 (최대 800KB)" });
     expect(await db.transaction.count()).toBe(0);
+  });
+
+  it("카테고리 조회가 실패하면 일반 오류를 돌려준다", async () => {
+    const spy = vi.spyOn(categoriesSvc, "listCategories").mockRejectedValueOnce(new Error("db down"));
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await importTransactionsCsv(`${HEADER_LINE}\n2026-10-01,지출,12000,식비,,,,,`);
+    expect(r).toEqual({ ok: false, error: "처리 중 오류가 발생했습니다. 잠시 후 다시 시도하세요" });
+    expect(await db.transaction.count()).toBe(0);
+    spy.mockRestore();
+    errorLog.mockRestore();
   });
 
   it("문자열이 아니면 거부한다", async () => {
