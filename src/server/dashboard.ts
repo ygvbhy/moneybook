@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { fromDbDate, monthRange, recentMonths, toDbDate } from "@/lib/date";
 import { monthlyTotals, type MonthTotal } from "@/lib/aggregate";
+import { pickRecentPresets, type TransactionPreset } from "@/lib/transaction-presets";
 import { toTransactionDto, type TransactionDto } from "@/server/transactions";
 
 function monthWhere(month: string) {
@@ -99,4 +100,38 @@ export async function getRecentCategoryIds(
     orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
   });
   return rows.slice(0, limit).map((r) => r.categoryId);
+}
+
+/**
+ * 거래 추가 폼의 "최근 거래" 칩 원본: 수동 입력 거래 + 활성 카테고리만,
+ * 최근 100건에서 같은 내용을 합쳐 유형별 최대 5개
+ */
+export async function getRecentTransactionPresets(): Promise<
+  Record<"INCOME" | "EXPENSE", TransactionPreset[]>
+> {
+  const rows = await db.transaction.findMany({
+    where: { recurringExpenseId: null, category: { archivedAt: null } },
+    select: {
+      type: true,
+      amount: true,
+      categoryId: true,
+      merchant: true,
+      item: true,
+      paymentMethod: true,
+      category: { select: { name: true } },
+    },
+    orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
+    take: 100,
+  });
+  return pickRecentPresets(
+    rows.map((r) => ({
+      type: r.type,
+      amount: r.amount,
+      categoryId: r.categoryId,
+      categoryName: r.category.name,
+      merchant: r.merchant,
+      item: r.item,
+      paymentMethod: r.paymentMethod,
+    })),
+  );
 }

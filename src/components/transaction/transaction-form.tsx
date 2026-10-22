@@ -29,6 +29,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { AmountInput } from "@/components/amount-input";
+import { formatKRW } from "@/lib/money";
+import type { TransactionPreset } from "@/lib/transaction-presets";
 import { PAYMENT_METHOD_LABELS, TYPE_LABELS } from "@/lib/labels";
 import { TYPE_TOGGLE_ITEM_CLASS } from "@/lib/type-toggle";
 import { cn } from "@/lib/utils";
@@ -57,6 +59,8 @@ export type TransactionFormProps = {
   defaultType?: TxType;
   categories: CategoryDto[];
   recentCategoryIds: Record<TxType, string[]>;
+  /** 생성 모드에서만 쓰는 "최근 거래" 칩 원본 */
+  recentPresets?: Record<TxType, TransactionPreset[]>;
   onDone: () => void;
 };
 
@@ -77,6 +81,7 @@ export function TransactionForm({
   defaultType = "EXPENSE",
   categories,
   recentCategoryIds,
+  recentPresets,
   onDone,
 }: TransactionFormProps) {
   const isEdit = !!tx;
@@ -119,6 +124,18 @@ export function TransactionForm({
     .map((id) => activeById.get(id))
     .filter((c): c is CategoryDto => !!c && c.type === type)
     .slice(0, 5);
+
+  const presets = isEdit ? [] : (recentPresets?.[type] ?? []);
+
+  function applyPreset(p: TransactionPreset) {
+    setValue("amount", p.amount, { shouldValidate: !!errors.amount });
+    setValue("categoryId", p.categoryId, { shouldValidate: !!errors.categoryId });
+    setValue("merchant", p.merchant ?? "", { shouldValidate: !!errors.merchant });
+    setValue("item", p.item ?? "", { shouldValidate: !!errors.item });
+    setValue("paymentMethod", p.paymentMethod ?? "", { shouldValidate: !!errors.paymentMethod });
+    // 접힌 상세 영역에 값이 숨어 저장되지 않도록 펼친다
+    if (p.merchant || p.item || p.paymentMethod) setDetailsOpen(true);
+  }
 
   function applyFailure(result: { error: string; fieldErrors?: Record<string, string[]> }) {
     for (const [field, messages] of Object.entries(result.fieldErrors ?? {})) {
@@ -183,6 +200,30 @@ export function TransactionForm({
           </ToggleGroup>
         )}
       />
+
+      {presets.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs text-muted-foreground">최근 거래</span>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="최근 거래">
+            {presets.map((p, i) => {
+              const label = p.merchant ?? p.item ?? p.categoryName;
+              return (
+                <Button
+                  key={i}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="max-w-full truncate"
+                  aria-label={`${label} ${formatKRW(p.amount)}원 불러오기`}
+                  onClick={() => applyPreset(p)}
+                >
+                  {label} {formatKRW(p.amount)}원
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="tx-amount">금액</Label>

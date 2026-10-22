@@ -6,7 +6,13 @@ import {
   updateTransaction,
 } from "@/server/actions/transactions";
 import { archiveCategory, createCategory } from "@/server/actions/categories";
-import { getMonthSummary, getMonthlyTrend, getRecentCategoryIds } from "@/server/dashboard";
+import {
+  getMonthSummary,
+  getMonthlyTrend,
+  getRecentCategoryIds,
+  getRecentTransactionPresets,
+} from "@/server/dashboard";
+import { createRecurring, materializeRecurring } from "@/server/recurring";
 import { getDailyTotals, listTransactionsByDate } from "@/server/calendar";
 import { getTransaction, listTransactions, parseListParams } from "@/server/transactions";
 import { categoryId, loginAsTest, resetDb, txInput } from "../setup/db";
@@ -254,6 +260,61 @@ describe("최근 카테고리", () => {
     const after = await getRecentCategoryIds("EXPENSE");
     expect(after).not.toContain(await categoryId("식비"));
     expect(after[0]).toBe(await categoryId("주거비"));
+  });
+});
+
+describe("최근 거래 프리셋", () => {
+  it("같은 내용 2건은 1개로 합치고 최근 것이 앞에 온다", async () => {
+    await create({ amount: 4_500, merchant: "스타벅스", occurredOn: "2026-10-01" });
+    await create({ amount: 9_000, merchant: "점심", occurredOn: "2026-10-02" });
+    await create({ amount: 4_500, merchant: "스타벅스", occurredOn: "2026-10-03" });
+
+    const { EXPENSE } = await getRecentTransactionPresets();
+    expect(EXPENSE.map((p) => [p.merchant, p.amount])).toEqual([
+      ["스타벅스", 4_500],
+      ["점심", 9_000],
+    ]);
+    expect(EXPENSE[0]).toMatchObject({ categoryId: food, categoryName: "식비", type: "EXPENSE" });
+  });
+
+  it("보관한 카테고리의 거래는 제외한다", async () => {
+    const transport = await categoryId("교통");
+    await create({ categoryId: transport, amount: 1_400, occurredOn: "2026-10-01" });
+    await create({ amount: 8_000, occurredOn: "2026-10-02" });
+    await archiveCategory(transport);
+
+    const { EXPENSE } = await getRecentTransactionPresets();
+    expect(EXPENSE.map((p) => p.amount)).toEqual([8_000]);
+  });
+
+  it("고정지출이 만든 거래는 제외한다", async () => {
+    await createRecurring(
+      {
+        categoryId: food,
+        item: "월세",
+        amount: 500_000,
+        dayOfMonth: 25,
+        merchant: null,
+        memo: null,
+        paymentMethod: null,
+      } as Parameters<typeof createRecurring>[0],
+      "2026-10-21",
+    );
+    await materializeRecurring("2026-10-25");
+    expect(await db.transaction.count({ where: { recurringExpenseId: { not: null } } })).toBe(1);
+    await create({ amount: 3_000, occurredOn: "2026-10-01" });
+
+    const { EXPENSE } = await getRecentTransactionPresets();
+    expect(EXPENSE.map((p) => p.amount)).toEqual([3_000]);
+  });
+
+  it("수입과 지출을 분리한다", async () => {
+    await create({ amount: 3_000 });
+    await createTransaction(txInput({ type: "INCOME", categoryId: salary, amount: 2_000_000 }));
+
+    const presets = await getRecentTransactionPresets();
+    expect(presets.EXPENSE.map((p) => p.amount)).toEqual([3_000]);
+    expect(presets.INCOME.map((p) => p.amount)).toEqual([2_000_000]);
   });
 });
 
