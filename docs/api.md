@@ -39,6 +39,8 @@ export async function updateX(id: string, input: unknown): Promise<ActionResult>
 | --- | --- |
 | create / set | `if (result.ok)`일 때만 |
 | update / delete / rename / archive / restore | 항상 (이미 삭제된 대상이어도 목록 갱신) |
+| import | `if (result.ok)`일 때만 |
+| 읽기 전용 (export) | 호출하지 않는다 (값만 반환) |
 
 ### 체크리스트 (새 action)
 
@@ -56,6 +58,8 @@ export async function updateX(id: string, input: unknown): Promise<ActionResult>
 | `auth.ts` | `logout()` | — | `redirect("/login")` |
 | `transactions.ts` | `createTransaction(input)` | `transactionSchema` | `{ id }` |
 | | `updateTransaction(id, input)` / `deleteTransaction(id)` | | — |
+| | `exportTransactionsCsv(input)` | `{ scope: "filtered", params? }` (`/transactions` search params) \| `{ scope: "all" }` | `{ filename, csv, count }` (읽기 전용) |
+| | `importTransactionsCsv(text)` | CSV 문자열 (≤ 800KB) | `{ count }`. 행 오류는 `fieldErrors.rows`에 `"N행: 메시지"` 목록 |
 | `categories.ts` | `createCategory(input)` | `categorySchema` | `{ id }` |
 | | `renameCategory(id, name)` / `archiveCategory(id)` / `restoreCategory(id)` | `categoryNameSchema` | — |
 | `budgets.ts` | `setTotalBudget(input)` | `totalBudgetSchema` (`amount` null = 삭제) | — |

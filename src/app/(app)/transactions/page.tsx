@@ -8,6 +8,7 @@ import { listTransactions, parseListParams } from "@/server/transactions";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { PageEmpty, PageHeader } from "@/components/app-shell/page-header";
 import { TransactionCardList } from "@/components/transaction/transaction-card-list";
+import { TransactionCsvMenu } from "@/components/transaction/transaction-csv-menu";
 import { TransactionFilters } from "@/components/transaction/transaction-filters";
 import { TransactionTable } from "@/components/transaction/transaction-table";
 
@@ -33,7 +34,10 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
   return (
     <>
       <PageHeader title="거래 내역">
-        <MonthSwitcher month={params.month} basePath="/transactions" searchParams={sp} />
+        <div className="flex items-center gap-2">
+          <MonthSwitcher month={params.month} basePath="/transactions" searchParams={sp} />
+          <TransactionCsvMenu />
+        </div>
       </PageHeader>
       <TransactionFilters
         categories={categories}

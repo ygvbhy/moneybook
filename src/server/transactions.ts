@@ -102,6 +102,23 @@ export async function getTransaction(id: string): Promise<TransactionDto | null>
   return row ? toTransactionDto(row) : null;
 }
 
+const IMPORT_CHUNK_SIZE = 1000;
+
+/**
+ * CSV 가져오기용 일괄 등록. 전부 성공하거나 전부 롤백된다.
+ * categoryId는 호출자가 parseTransactionsCsv로 존재·유형·보관 여부를 검증했어야 한다.
+ */
+export async function importTransactions(inputs: TransactionInput[]): Promise<{ count: number }> {
+  const chunks: TransactionInput[][] = [];
+  for (let i = 0; i < inputs.length; i += IMPORT_CHUNK_SIZE) {
+    chunks.push(inputs.slice(i, i + IMPORT_CHUNK_SIZE));
+  }
+  const results = await db.$transaction(
+    chunks.map((chunk) => db.transaction.createMany({ data: chunk.map(toData) })),
+  );
+  return { count: results.reduce((sum, r) => sum + r.count, 0) };
+}
+
 export type SortDirection = "asc" | "desc";
 
 export type ListParams = {
@@ -132,6 +149,15 @@ export async function listTransactions(params: ListParams): Promise<TransactionD
     },
     include: withCategory,
     orderBy: [{ occurredOn: params.sort }, { createdAt: params.sort }],
+  });
+  return rows.map(toTransactionDto);
+}
+
+/** CSV 내보내기용 전체 거래. 오래된 순, 같은 시각이면 id로 안정 정렬 */
+export async function listAllTransactions(): Promise<TransactionDto[]> {
+  const rows = await db.transaction.findMany({
+    include: withCategory,
+    orderBy: [{ occurredOn: "asc" }, { createdAt: "asc" }, { id: "asc" }],
   });
   return rows.map(toTransactionDto);
 }

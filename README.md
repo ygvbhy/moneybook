@@ -1,6 +1,6 @@
 # 가계부 웹
 
-1인용 개인 가계부(Moneybook). 수입·지출 기록, 월간 캘린더, 월별 통계, 카테고리 예산, 매월 자동 등록되는 고정지출을 관리한다.
+1인용 개인 가계부(Moneybook). 수입·지출 기록, 월간 캘린더, 월별 통계, 카테고리 예산, 매월 자동 등록되는 고정지출을 관리한다. 거래는 CSV로 내보내고 가져올 수 있다.
 
 - Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui
 - Prisma 7 + PostgreSQL 17 · Zod · React Hook Form · Recharts · Vitest
