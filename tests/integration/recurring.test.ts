@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { fromDbDate } from "@/lib/date";
 import {
@@ -141,6 +141,36 @@ describe("동시성", () => {
       const dates = await txDates(id);
       expect(dates.filter((d) => d.startsWith("2026-10")).length).toBeLessThanOrEqual(1);
       expect(await db.transaction.count()).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("자동 등록 실패 격리", () => {
+  it("한 항목이 실패해도 나머지는 등록되고, 실패 항목은 롤백·로그되며 삭제할 수 있다", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const ids = [await create(), await create(), await create()];
+      const broken = ids[1];
+      const healthy = [ids[0], ids[2]];
+      await db.recurringExpense.update({ where: { id: broken }, data: { dayOfMonth: 0 } });
+
+      await expect(materializeRecurring("2026-10-25")).resolves.toBeUndefined();
+
+      for (const id of healthy) {
+        expect(await txDates(id)).toEqual(["2026-10-25"]);
+        expect(await cursor(id)).toBe("2026-11-25");
+      }
+      expect(await txDates(broken)).toEqual([]);
+      expect(await cursor(broken)).toBe("2026-10-25");
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0]).toContain(broken);
+
+      await deleteRecurring(broken);
+      errorSpy.mockClear();
+      await materializeRecurring("2026-10-25");
+      expect(errorSpy).not.toHaveBeenCalled();
+    } finally {
+      errorSpy.mockRestore();
     }
   });
 });

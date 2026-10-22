@@ -62,7 +62,7 @@ components/ (Client Component)           ──쓰기──▶ server/actions/*.
 - 페이지는 쿠키를 읽으므로 동적 렌더링이다. `next.config.ts`에 Cache Components 설정 없음.
 - 모든 변경 action은 `revalidatePath("/", "layout")`로 앱 전체를 무효화한다 (정밀 무효화 안 함).
 - 집계는 저장하지 않고 조회 시 Prisma `groupBy`/`aggregate`로 계산한다. 집계용 raw SQL은 쓰지 않는다 (유일한 raw SQL은 `updateRecurring`의 `SELECT ... FOR UPDATE` 잠금).
-- 고정지출 자동 등록은 **페이지 렌더 중 DB 쓰기**다 (`materializeRecurring`). 렌더 중이므로 이 함수 안에서 `revalidatePath`·`cookies` 쓰기를 하지 않는다.
+- 고정지출 자동 등록은 **페이지 렌더 중 DB 쓰기**다 (`materializeRecurring`). 렌더 중이므로 이 함수 안에서 `revalidatePath`·`cookies` 쓰기를 하지 않는다. 항목별 실패는 잡아서 로그만 남기므로 페이지를 막지 않는다 → [knowledge/recurring.md](../knowledge/recurring.md).
 
 ## 오류·로딩
 

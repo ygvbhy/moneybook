@@ -151,12 +151,19 @@ export async function deleteRecurring(id: string): Promise<void> {
   }
 }
 
-/** 도래한 고정지출을 거래로 만든다. 렌더 중 호출되므로 revalidate·cookies를 쓰지 않는다 */
+/**
+ * 도래한 고정지출을 거래로 만든다. 렌더 중 호출되므로 revalidate·cookies를 쓰지 않는다.
+ * 항목 하나가 실패하면 로그만 남기고 다음 항목을 처리한다(커서가 그대로라 다음 렌더에서 재시도).
+ */
 export async function materializeRecurring(today: string): Promise<void> {
   const rows = await db.recurringExpense.findMany({
     where: { nextRunOn: { lte: toDbDate(today) } },
   });
   for (const row of rows) {
-    await db.$transaction((tx) => materializeOne(tx, row, today));
+    try {
+      await db.$transaction((tx) => materializeOne(tx, row, today));
+    } catch (e) {
+      console.error("[recurring] materialize failed", row.id, e);
+    }
   }
 }
