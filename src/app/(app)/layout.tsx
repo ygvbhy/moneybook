@@ -2,7 +2,11 @@ import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { requireSession } from "@/lib/auth/dal";
 import { todayInSeoul } from "@/lib/date";
-import { getRecentCategoryIds, getRecentTransactionPresets } from "@/server/dashboard";
+import {
+  getMerchantSuggestions,
+  getRecentCategoryIds,
+  getRecentTransactionPresets,
+} from "@/server/dashboard";
 import { listCategories } from "@/server/categories";
 import { Sidebar } from "@/components/app-shell/sidebar";
 import { BottomNav } from "@/components/app-shell/bottom-nav";
@@ -13,17 +17,19 @@ import { TransactionDialogProvider } from "@/components/transaction/transaction-
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   await requireSession();
   const sidebarCollapsed = (await cookies()).get("sidebar_collapsed")?.value === "1";
-  const [categories, expenseIds, incomeIds, recentPresets] = await Promise.all([
+  const [categories, expenseIds, incomeIds, recentPresets, merchantSuggestions] = await Promise.all([
     listCategories(),
     getRecentCategoryIds("EXPENSE"),
     getRecentCategoryIds("INCOME"),
     getRecentTransactionPresets(),
+    getMerchantSuggestions(),
   ]);
   return (
     <TransactionDialogProvider
       categories={categories}
       recentCategoryIds={{ EXPENSE: expenseIds, INCOME: incomeIds }}
       recentPresets={recentPresets}
+      merchantSuggestions={merchantSuggestions}
       today={todayInSeoul()}
     >
       <div className="flex min-h-full flex-1 flex-col">

@@ -4,16 +4,18 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import type { BudgetOverview } from "@/lib/budget";
+import type { BudgetOverview, DailyAllowance } from "@/lib/budget";
 import { formatKRW } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 export function BudgetProgressCard({
   month,
   overview,
+  allowance,
 }: {
   month: string;
   overview: BudgetOverview;
+  allowance: DailyAllowance | null;
 }) {
   const hasTotal = overview.budget !== null && overview.budget > 0;
   const percent = Math.min(100, Math.max(0, overview.rate ?? 0));
@@ -60,6 +62,19 @@ export function BudgetProgressCard({
                 overview.over && "*:data-[slot=progress-indicator]:bg-destructive",
               )}
             />
+            {allowance && (
+              <p className="text-sm text-muted-foreground tabular-nums">
+                {allowance.available > 0
+                  ? `하루 ${formatKRW(allowance.perDay)}원 사용 가능 · 남은 ${allowance.daysLeft}일${
+                      allowance.upcomingTotal > 0
+                        ? ` (고정지출 예정 ${formatKRW(allowance.upcomingTotal)}원 제외)`
+                        : ""
+                    }`
+                  : allowance.upcomingTotal > 0
+                    ? "남은 고정지출을 빼면 쓸 수 있는 예산이 없습니다"
+                    : "남은 예산이 없습니다"}
+              </p>
+            )}
             {overview.allocationWarning && (
               <p className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
                 <TriangleAlert className="size-3.5" aria-hidden />

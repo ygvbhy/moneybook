@@ -3,12 +3,15 @@ import { db } from "@/lib/db";
 import {
   createTransaction,
   deleteTransaction,
+  exportTransactionsCsv,
   updateTransaction,
 } from "@/server/actions/transactions";
 import { archiveCategory, createCategory } from "@/server/actions/categories";
 import {
   getMonthSummary,
+  getMerchantSuggestions,
   getMonthlyTrend,
+  getPaymentMethodSpending,
   getRecentCategoryIds,
   getRecentTransactionPresets,
 } from "@/server/dashboard";
@@ -204,6 +207,17 @@ describe("목록 조회", () => {
     expect(await list({ categoryId: food })).toHaveLength(3);
   });
 
+  it("결제수단 필터: 값 일치, none은 미지정만", async () => {
+    await create({ occurredOn: "2026-10-06", amount: 4_000, paymentMethod: "CASH" });
+    await create({ occurredOn: "2026-10-07", amount: 5_000, paymentMethod: "CREDIT_CARD" });
+    expect((await list({ paymentMethod: "CASH" })).map((t) => t.amount)).toEqual([4_000]);
+    expect(
+      (await list({ paymentMethod: "none", sort: "asc" })).map((t) => t.amount),
+    ).toEqual([1_000, 2_000, 3_000, 9_000]);
+    expect(await list({ paymentMethod: "OTHER" })).toHaveLength(0);
+    expect(await list()).toHaveLength(6);
+  });
+
   it("검색은 거래처·항목·메모에서 대소문자 무시", async () => {
     expect((await list({ q: "gs25" })).map((t) => t.amount)).toEqual([1_000]);
     expect((await list({ q: "AMERICANO" })).map((t) => t.amount)).toEqual([2_000]);
@@ -318,6 +332,55 @@ describe("최근 거래 프리셋", () => {
   });
 });
 
+describe("거래처 제안", () => {
+  it("거래처가 없는 거래는 제외한다", async () => {
+    await create({ merchant: null });
+    await create({ merchant: "스타벅스" });
+    const { EXPENSE } = await getMerchantSuggestions();
+    expect(EXPENSE.map((s) => s.merchant)).toEqual(["스타벅스"]);
+  });
+
+  it("보관한 카테고리의 거래는 제외한다", async () => {
+    const transport = await categoryId("교통");
+    await create({ categoryId: transport, merchant: "버스" });
+    await create({ merchant: "스타벅스" });
+    await archiveCategory(transport);
+    const { EXPENSE } = await getMerchantSuggestions();
+    expect(EXPENSE.map((s) => s.merchant)).toEqual(["스타벅스"]);
+  });
+
+  it("고정지출이 만든 거래는 제외한다", async () => {
+    await createRecurring(
+      {
+        categoryId: food,
+        item: "월세",
+        amount: 500_000,
+        dayOfMonth: 25,
+        merchant: "집주인",
+        memo: null,
+        paymentMethod: null,
+      } as Parameters<typeof createRecurring>[0],
+      "2026-10-21",
+    );
+    await materializeRecurring("2026-10-25");
+    expect(await db.transaction.count({ where: { recurringExpenseId: { not: null } } })).toBe(1);
+    await create({ merchant: "스타벅스" });
+    const { EXPENSE } = await getMerchantSuggestions();
+    expect(EXPENSE.map((s) => s.merchant)).toEqual(["스타벅스"]);
+  });
+
+  it("같은 거래처가 여러 카테고리면 가장 많이 쓴 카테고리를 고른다", async () => {
+    const transport = await categoryId("교통");
+    await create({ merchant: "GS25", categoryId: food, paymentMethod: "CASH" });
+    await create({ merchant: "GS25", categoryId: transport, paymentMethod: "CREDIT_CARD" });
+    await create({ merchant: "GS25", categoryId: transport, paymentMethod: "CREDIT_CARD" });
+    const { EXPENSE } = await getMerchantSuggestions();
+    expect(EXPENSE).toEqual([
+      { merchant: "GS25", categoryId: transport, paymentMethod: "CREDIT_CARD" },
+    ]);
+  });
+});
+
 describe("URL 파라미터 정규화", () => {
   const today = "2026-10-21";
   it("기본값", async () => {
@@ -325,6 +388,7 @@ describe("URL 파라미터 정규화", () => {
       month: "2026-10",
       type: undefined,
       categoryId: undefined,
+      paymentMethod: undefined,
       q: undefined,
       sort: "desc",
     });
@@ -339,6 +403,31 @@ describe("URL 파라미터 정규화", () => {
     expect(p.categoryId).toBeUndefined();
     expect(p.q).toBeUndefined();
   });
+  it("payment: 허용된 값과 none은 유지, 알 수 없는 값은 무시", async () => {
+    expect((await parseListParams({ payment: "CASH" }, today)).paymentMethod).toBe("CASH");
+    expect((await parseListParams({ payment: "none" }, today)).paymentMethod).toBe("none");
+    expect((await parseListParams({ payment: "BITCOIN" }, today)).paymentMethod).toBeUndefined();
+    expect((await parseListParams({ payment: "cash" }, today)).paymentMethod).toBeUndefined();
+  });
+  it("CSV 현재 목록 내보내기에 payment 필터가 반영된다", async () => {
+    await create({ occurredOn: "2026-10-06", paymentMethod: "CASH" });
+    await create({ occurredOn: "2026-10-07", paymentMethod: "CASH" });
+    await create({ occurredOn: "2026-10-08", paymentMethod: "CREDIT_CARD" });
+    await create({ occurredOn: "2026-10-09" });
+    const exported = async (payment: string) => {
+      const r = await exportTransactionsCsv({
+        scope: "filtered",
+        params: { month: "2026-10", payment },
+      });
+      if (!r.ok) throw new Error(r.error);
+      return r.data!.count;
+    };
+    expect(await exported("CASH")).toBe(
+      (await listTransactions({ month: "2026-10", sort: "desc", paymentMethod: "CASH" })).length,
+    );
+    expect(await exported("CASH")).toBe(2);
+    expect(await exported("none")).toBe(1);
+  });
   it("유효한 값은 유지, 배열은 첫 값", async () => {
     const p = await parseListParams(
       { month: ["2026-09", "x"], type: "INCOME", category: salary, sort: "asc", q: " 커피 " },
@@ -348,8 +437,50 @@ describe("URL 파라미터 정규화", () => {
       month: "2026-09",
       type: "INCOME",
       categoryId: salary,
+      paymentMethod: undefined,
       q: "커피",
       sort: "asc",
     });
+  });
+});
+
+describe("결제수단별 지출", () => {
+  it("지출만 금액 내림차순으로 집계하고, 합계는 월 지출과 같다", async () => {
+    await create({ amount: 5_000, paymentMethod: "CREDIT_CARD" });
+    await create({ amount: 3_000, paymentMethod: "CREDIT_CARD" });
+    await create({ amount: 8_000, paymentMethod: "CASH" });
+    await create({ amount: 20_000 });
+    await create({ amount: 1_000, paymentMethod: "DEBIT_CARD" });
+    await create({ amount: 7_000, occurredOn: "2026-11-01", paymentMethod: "CASH" });
+    await createTransaction(
+      txInput({ type: "INCOME", categoryId: salary, amount: 99_000, paymentMethod: "CASH" }),
+    );
+
+    const spending = await getPaymentMethodSpending("2026-10");
+    expect(spending).toEqual([
+      { paymentMethod: null, total: 20_000 },
+      { paymentMethod: "CASH", total: 8_000 },
+      { paymentMethod: "CREDIT_CARD", total: 8_000 },
+      { paymentMethod: "DEBIT_CARD", total: 1_000 },
+    ]);
+    expect(spending.reduce((sum, s) => sum + s.total, 0)).toBe(
+      (await getMonthSummary("2026-10")).expense,
+    );
+  });
+
+  it("금액이 같으면 결제수단 목록 순서이고 미지정은 마지막이다", async () => {
+    await create({ amount: 5_000 });
+    await create({ amount: 5_000, paymentMethod: "OTHER" });
+    await create({ amount: 5_000, paymentMethod: "BANK_TRANSFER" });
+
+    expect(await getPaymentMethodSpending("2026-10")).toEqual([
+      { paymentMethod: "BANK_TRANSFER", total: 5_000 },
+      { paymentMethod: "OTHER", total: 5_000 },
+      { paymentMethod: null, total: 5_000 },
+    ]);
+  });
+
+  it("지출이 없으면 빈 배열", async () => {
+    expect(await getPaymentMethodSpending("2026-10")).toEqual([]);
   });
 });

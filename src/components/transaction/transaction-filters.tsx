@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { TYPE_LABELS } from "@/lib/labels";
+import { PAYMENT_METHOD_LABELS, TYPE_LABELS } from "@/lib/labels";
 import type { CategoryDto } from "@/server/categories";
 
 const ALL = "all";
@@ -22,11 +22,12 @@ type Props = {
   categories: CategoryDto[];
   type?: "INCOME" | "EXPENSE";
   categoryId?: string;
+  paymentMethod?: string;
   q?: string;
   sort: "asc" | "desc";
 };
 
-export function TransactionFilters({ categories, type, categoryId, q, sort }: Props) {
+export function TransactionFilters({ categories, type, categoryId, paymentMethod, q, sort }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = useState(q ?? "");
@@ -110,6 +111,24 @@ export function TransactionFilters({ categories, type, categoryId, q, sort }: Pr
               ))}
             </SelectGroup>
           ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={paymentMethod ?? ALL}
+        onValueChange={(v) => update({ payment: v === ALL ? undefined : v })}
+      >
+        <SelectTrigger className="w-36" aria-label="결제수단 필터">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>모든 결제수단</SelectItem>
+          {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
+            <SelectItem key={value} value={value}>
+              {label}
+            </SelectItem>
+          ))}
+          <SelectItem value="none">미지정</SelectItem>
         </SelectContent>
       </Select>
 

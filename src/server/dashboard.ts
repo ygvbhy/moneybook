@@ -2,7 +2,13 @@ import "server-only";
 import { db } from "@/lib/db";
 import { fromDbDate, monthRange, recentMonths, toDbDate } from "@/lib/date";
 import { monthlyTotals, type MonthTotal } from "@/lib/aggregate";
-import { pickRecentPresets, type TransactionPreset } from "@/lib/transaction-presets";
+import {
+  pickMerchantSuggestions,
+  pickRecentPresets,
+  type MerchantSuggestion,
+  type TransactionPreset,
+} from "@/lib/transaction-presets";
+import { PAYMENT_METHODS } from "@/lib/validation/transaction";
 import { toTransactionDto, type TransactionDto } from "@/server/transactions";
 
 function monthWhere(month: string) {
@@ -52,6 +58,25 @@ export async function getCategorySpending(month: string): Promise<CategorySpendi
       total: g._sum.amount ?? 0,
     }))
     .sort((a, b) => b.total - a.total || a.categoryId.localeCompare(b.categoryId));
+}
+
+export type PaymentMethodSpending = {
+  paymentMethod: (typeof PAYMENT_METHODS)[number] | null;
+  total: number;
+};
+
+/** 선택 월 지출의 결제수단별 합계, 금액 내림차순 (동률은 PAYMENT_METHODS 순, 미지정은 마지막) */
+export async function getPaymentMethodSpending(month: string): Promise<PaymentMethodSpending[]> {
+  const groups = await db.transaction.groupBy({
+    by: ["paymentMethod"],
+    where: { ...monthWhere(month), type: "EXPENSE" },
+    _sum: { amount: true },
+  });
+  const order = (m: PaymentMethodSpending["paymentMethod"]) =>
+    m === null ? PAYMENT_METHODS.length : PAYMENT_METHODS.indexOf(m);
+  return groups
+    .map((g) => ({ paymentMethod: g.paymentMethod, total: g._sum.amount ?? 0 }))
+    .sort((a, b) => b.total - a.total || order(a.paymentMethod) - order(b.paymentMethod));
 }
 
 /** 선택 월을 끝으로 최근 count개월의 월별 수입·지출 합계 (오래된 순, 거래 없는 달은 0) */
@@ -133,5 +158,36 @@ export async function getRecentTransactionPresets(): Promise<
       item: r.item,
       paymentMethod: r.paymentMethod,
     })),
+  );
+}
+
+/**
+ * 거래처 자동완성 원본: 수동 입력 거래 + 활성 카테고리만,
+ * 거래처별 최다 카테고리·결제수단을 유형별 최대 100개
+ */
+export async function getMerchantSuggestions(): Promise<
+  Record<"INCOME" | "EXPENSE", MerchantSuggestion[]>
+> {
+  const groups = await db.transaction.groupBy({
+    by: ["type", "merchant", "categoryId", "paymentMethod"],
+    where: { merchant: { not: null }, recurringExpenseId: null, category: { archivedAt: null } },
+    _count: { _all: true },
+    _max: { occurredOn: true },
+  });
+  return pickMerchantSuggestions(
+    groups.flatMap((g) =>
+      g.merchant && g._max.occurredOn
+        ? [
+            {
+              type: g.type,
+              merchant: g.merchant,
+              categoryId: g.categoryId,
+              paymentMethod: g.paymentMethod,
+              count: g._count._all,
+              lastOn: fromDbDate(g._max.occurredOn),
+            },
+          ]
+        : [],
+    ),
   );
 }

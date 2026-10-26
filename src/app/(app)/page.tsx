@@ -9,15 +9,18 @@ import {
   type CategorySpendingDatum,
 } from "@/components/dashboard/category-spending-chart";
 import { MonthlyTrendChart } from "@/components/dashboard/monthly-trend-chart";
+import { PaymentMethodSpendingCard } from "@/components/dashboard/payment-method-spending-card";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
 import { UpcomingRecurringCard } from "@/components/dashboard/upcoming-recurring-card";
+import { dailyAllowance } from "@/lib/budget";
 import { upcomingIn } from "@/lib/recurring";
 import { getBudgetPage } from "@/server/budgets";
 import {
   getCategorySpending,
   getMonthSummary,
   getMonthlyTrend,
+  getPaymentMethodSpending,
   getRecentTransactions,
 } from "@/server/dashboard";
 import { listRecurring, materializeRecurring } from "@/server/recurring";
@@ -34,7 +37,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
   // 1900-01은 전월이 유효 범위 밖이라 비교하지 않는다
   const prevMonth = shiftMonth(month, -1);
-  const [summary, spending, prevSpending, trend, recent, budget, recurring] = await Promise.all([
+  const [summary, spending, prevSpending, trend, recent, budget, recurring, paymentSpending] = await Promise.all([
     getMonthSummary(month),
     getCategorySpending(month),
     isValidYearMonth(prevMonth) ? getCategorySpending(prevMonth) : Promise.resolve([]),
@@ -42,8 +45,15 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     getRecentTransactions(month, 5),
     getBudgetPage(month),
     listRecurring(),
+    getPaymentMethodSpending(month),
   ]);
   const upcoming = upcomingIn(month, recurring);
+  const allowance = dailyAllowance({
+    month,
+    today,
+    overview: budget.overview,
+    upcomingTotal: upcoming.reduce((sum, u) => sum + u.amount, 0),
+  });
 
   const prevTrend = trend.find((t) => t.month === prevMonth);
   const prev = prevTrend && {
@@ -73,7 +83,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
         <MonthSwitcher month={month} basePath="/" searchParams={sp} />
       </PageHeader>
       <SummaryCards month={month} {...summary} overview={budget.overview} prev={prev} />
-      <BudgetProgressCard month={month} overview={budget.overview} />
+      <BudgetProgressCard month={month} overview={budget.overview} allowance={allowance} />
       <UpcomingRecurringCard upcoming={upcoming} />
       <Card>
         <CardHeader>
@@ -114,6 +124,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
           </CardContent>
         </Card>
       </div>
+      <PaymentMethodSpendingCard spending={paymentSpending} />
     </div>
   );
 }

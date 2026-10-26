@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import type { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,7 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { AmountInput } from "@/components/amount-input";
 import { formatKRW } from "@/lib/money";
-import type { TransactionPreset } from "@/lib/transaction-presets";
+import type { MerchantSuggestion, TransactionPreset } from "@/lib/transaction-presets";
 import { PAYMENT_METHOD_LABELS, TYPE_LABELS } from "@/lib/labels";
 import { TYPE_TOGGLE_ITEM_CLASS } from "@/lib/type-toggle";
 import { cn } from "@/lib/utils";
@@ -61,6 +61,8 @@ export type TransactionFormProps = {
   recentCategoryIds: Record<TxType, string[]>;
   /** 생성 모드에서만 쓰는 "최근 거래" 칩 원본 */
   recentPresets?: Record<TxType, TransactionPreset[]>;
+  /** 거래처 자동완성 목록 원본. 생성 모드에서는 카테고리·결제수단도 채운다 */
+  merchantSuggestions?: Record<TxType, MerchantSuggestion[]>;
   onDone: () => void;
 };
 
@@ -82,6 +84,7 @@ export function TransactionForm({
   categories,
   recentCategoryIds,
   recentPresets,
+  merchantSuggestions,
   onDone,
 }: TransactionFormProps) {
   const isEdit = !!tx;
@@ -96,6 +99,7 @@ export function TransactionForm({
     handleSubmit,
     setError,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<FormValues, unknown, TransactionInput>({
     resolver: zodResolver(transactionSchema),
@@ -124,6 +128,33 @@ export function TransactionForm({
     .map((id) => activeById.get(id))
     .filter((c): c is CategoryDto => !!c && c.type === type)
     .slice(0, 5);
+
+  const merchantOptions = merchantSuggestions?.[type] ?? [];
+
+  // 거래처로 자동 채운 값을 기억해 두었다가, 그 값일 때만 다시 바꾼다.
+  // "GS" → "GS25"처럼 접두어가 겹치거나 IME 조합 중 중간 값이 들어와도
+  // 사용자가 직접 고른 카테고리·결제수단은 덮어쓰지 않기 위함
+  const autoFilled = useRef<{ categoryId: string | null; paymentMethod: string | null }>({
+    categoryId: null,
+    paymentMethod: null,
+  });
+
+  function fillFromMerchant(value: string) {
+    const s = merchantOptions.find((m) => m.merchant === value.trim());
+    const nextById = {
+      categoryId: s && activeById.get(s.categoryId)?.type === type ? s.categoryId : "",
+      paymentMethod: s?.paymentMethod ?? "",
+    };
+    for (const f of ["categoryId", "paymentMethod"] as const) {
+      const cur = String(getValues(f) ?? "");
+      if (cur !== "" && cur !== autoFilled.current[f]) continue;
+      const next = nextById[f];
+      if (next !== cur) setValue(f, next, { shouldValidate: !!errors[f] });
+      autoFilled.current[f] = next || null;
+    }
+  }
+
+  const merchantField = register("merchant");
 
   const presets = isEdit ? [] : (recentPresets?.[type] ?? []);
 
@@ -320,7 +351,21 @@ export function TransactionForm({
         <div id="tx-details" hidden={!detailsOpen} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="tx-merchant">거래처</Label>
-            <Input id="tx-merchant" aria-invalid={!!errors.merchant} {...register("merchant")} />
+            <Input
+              id="tx-merchant"
+              list="tx-merchant-options"
+              aria-invalid={!!errors.merchant}
+              {...merchantField}
+              onChange={(e) => {
+                void merchantField.onChange(e);
+                if (!isEdit) fillFromMerchant(e.target.value);
+              }}
+            />
+            <datalist id="tx-merchant-options">
+              {merchantOptions.map((m) => (
+                <option key={m.merchant} value={m.merchant} />
+              ))}
+            </datalist>
             <FieldError id="tx-merchant-error" message={errors.merchant?.message} />
           </div>
           <div className="flex flex-col gap-2">

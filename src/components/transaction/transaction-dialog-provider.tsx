@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { TransactionDialog } from "@/components/transaction/transaction-dialog";
-import type { TransactionPreset } from "@/lib/transaction-presets";
+import type { MerchantSuggestion, TransactionPreset } from "@/lib/transaction-presets";
 import type { CategoryDto } from "@/server/categories";
 import type { TransactionDto } from "@/server/transactions";
 
@@ -30,12 +30,14 @@ export function TransactionDialogProvider({
   categories,
   recentCategoryIds,
   recentPresets,
+  merchantSuggestions,
   today,
   children,
 }: {
   categories: CategoryDto[];
   recentCategoryIds: Record<TxType, string[]>;
   recentPresets: Record<TxType, TransactionPreset[]>;
+  merchantSuggestions: Record<TxType, MerchantSuggestion[]>;
   today: string;
   children: ReactNode;
 }) {
@@ -70,6 +72,7 @@ export function TransactionDialogProvider({
             categories,
             recentCategoryIds,
             recentPresets,
+            merchantSuggestions,
           }}
         />
       )}

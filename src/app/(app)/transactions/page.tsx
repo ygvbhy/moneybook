@@ -29,7 +29,7 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
     if (tx.type === "INCOME") income += tx.amount;
     else expense += tx.amount;
   }
-  const filtered = !!(params.type || params.categoryId || params.q);
+  const filtered = !!(params.type || params.categoryId || params.paymentMethod || params.q);
 
   return (
     <>
@@ -43,6 +43,7 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
         categories={categories}
         type={params.type}
         categoryId={params.categoryId}
+        paymentMethod={params.paymentMethod}
         q={params.q}
         sort={params.sort}
       />

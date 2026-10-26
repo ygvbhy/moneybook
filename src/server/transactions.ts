@@ -1,7 +1,11 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { fromDbDate, monthRange, normalizeMonthParam, toDbDate } from "@/lib/date";
-import { TRANSACTION_TYPES, type TransactionInput } from "@/lib/validation/transaction";
+import {
+  PAYMENT_METHODS,
+  TRANSACTION_TYPES,
+  type TransactionInput,
+} from "@/lib/validation/transaction";
 import type { Prisma } from "@/generated/prisma/client";
 import { ServiceError, TX_NOT_FOUND, prismaCode } from "@/server/service-error";
 
@@ -125,6 +129,7 @@ export type ListParams = {
   month: string;
   type?: "INCOME" | "EXPENSE";
   categoryId?: string;
+  paymentMethod?: (typeof PAYMENT_METHODS)[number] | "none"; // "none" = 결제수단 미지정
   q?: string;
   sort: SortDirection;
 };
@@ -137,6 +142,9 @@ export async function listTransactions(params: ListParams): Promise<TransactionD
       occurredOn: { gte: toDbDate(start), lt: toDbDate(endExclusive) },
       ...(params.type ? { type: params.type } : {}),
       ...(params.categoryId ? { categoryId: params.categoryId } : {}),
+      ...(params.paymentMethod
+        ? { paymentMethod: params.paymentMethod === "none" ? null : params.paymentMethod }
+        : {}),
       ...(q
         ? {
             OR: [
@@ -169,6 +177,7 @@ const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v
 /**
  * URL search params 정규화 (잘못된 값은 오류 없이 기본값/무시).
  * month 오류 → today가 속한 달, type 알 수 없음 → 무시, category가 DB에 없으면 무시,
+ * payment는 결제수단 값 또는 "none"(미지정)만 인정하고 나머지는 무시,
  * sort는 "asc"만 인정하고 나머지는 "desc", q는 trim 후 최대 100자(빈 값은 무시).
  */
 export async function parseListParams(
@@ -192,8 +201,14 @@ export async function parseListParams(
     categoryId = found?.id;
   }
 
+  const rawPayment = first(searchParams.payment);
+  const paymentMethod =
+    rawPayment === "none" || (PAYMENT_METHODS as readonly string[]).includes(rawPayment ?? "")
+      ? (rawPayment as ListParams["paymentMethod"])
+      : undefined;
+
   const q = first(searchParams.q)?.trim().slice(0, 100) || undefined;
   const sort: SortDirection = first(searchParams.sort) === "asc" ? "asc" : "desc";
 
-  return { month, type, categoryId, q, sort };
+  return { month, type, categoryId, paymentMethod, q, sort };
 }
