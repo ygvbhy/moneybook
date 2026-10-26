@@ -1,6 +1,7 @@
 "use client";
 
-import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useRouter } from "next/navigation";
+import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Text, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCompactKRW, formatKRW, formatKRWDelta } from "@/lib/money";
 
 export type CategorySpendingDatum = {
@@ -15,6 +16,10 @@ export type CategorySpendingDatum = {
 };
 
 const ROW_HEIGHT = 48;
+
+function href(month: string, d: CategorySpendingDatum) {
+  return `/transactions?${new URLSearchParams({ month, type: "EXPENSE", category: d.categoryId })}`;
+}
 
 function label(d: CategorySpendingDatum) {
   return d.rate === null ? `${formatKRW(d.total)}원` : `${formatKRW(d.total)}원 · ${d.rate.toFixed(1)}%`;
@@ -43,7 +48,14 @@ function ChartTooltip({
   );
 }
 
-export function CategorySpendingChart({ data }: { data: CategorySpendingDatum[] }) {
+export function CategorySpendingChart({
+  month,
+  data,
+}: {
+  month: string;
+  data: CategorySpendingDatum[];
+}) {
+  const router = useRouter();
   return (
     <div className="viz-root">
       <style>{`
@@ -57,10 +69,11 @@ export function CategorySpendingChart({ data }: { data: CategorySpendingDatum[] 
           --viz-grid: #3a3a38;
         }
         .viz-root .recharts-cartesian-axis-tick-value { fill: var(--viz-axis); }
-        .viz-root .viz-bar { fill: var(--viz-series-1); }
+        .viz-root .viz-bar { fill: var(--viz-series-1); cursor: pointer; }
+        .viz-root a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
         .viz-root .viz-label { fill: var(--viz-axis); font-variant-numeric: tabular-nums; }
       `}</style>
-      <div role="img" aria-label="카테고리별 지출 막대 차트. 아래 표에 같은 수치가 있습니다.">
+      <div role="figure" aria-label="카테고리별 지출 막대 차트. 아래 표에 같은 수치가 있습니다.">
         <ResponsiveContainer width="100%" height={data.length * ROW_HEIGHT + 8}>
           <BarChart
             data={data}
@@ -75,11 +88,42 @@ export function CategorySpendingChart({ data }: { data: CategorySpendingDatum[] 
               width={88}
               tickLine={false}
               axisLine={{ stroke: "var(--viz-grid)" }}
-              tick={{ fontSize: 12 }}
+              tick={(props) => {
+                const { payload } = props;
+                const d = data[payload.index] ?? data.find((item) => item.name === payload.value);
+                // 기본 tick과 같은 렌더(줄바꿈·위치 포함)를 위해 recharts Text에 props를 그대로 넘긴다
+                const text = (
+                  <Text {...props} fontSize={12}>
+                    {payload.value}
+                  </Text>
+                );
+                if (!d) return text;
+                const link = href(month, d);
+                return (
+                  <a
+                    href={link}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      router.push(link);
+                    }}
+                  >
+                    {text}
+                  </a>
+                );
+              }}
               interval={0}
             />
             <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--viz-grid)", opacity: 0.4 }} />
-            <Bar dataKey="total" radius={[0, 4, 4, 0]} maxBarSize={20} isAnimationActive={false}>
+            <Bar
+              dataKey="total"
+              radius={[0, 4, 4, 0]}
+              maxBarSize={20}
+              isAnimationActive={false}
+              onClick={(_, index) => {
+                const d = data[index];
+                if (d) router.push(href(month, d));
+              }}
+            >
               {data.map((d) => (
                 <Cell key={d.categoryId} className="viz-bar" />
               ))}

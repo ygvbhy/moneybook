@@ -111,7 +111,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 이 달의 지출이 없습니다
               </p>
             ) : (
-              <CategorySpendingChart data={chartData} />
+              <CategorySpendingChart month={month} data={chartData} />
             )}
           </CardContent>
         </Card>
@@ -124,7 +124,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
           </CardContent>
         </Card>
       </div>
-      <PaymentMethodSpendingCard spending={paymentSpending} />
+      <PaymentMethodSpendingCard month={month} spending={paymentSpending} />
     </div>
   );
 }
