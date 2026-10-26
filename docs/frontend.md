@@ -12,7 +12,7 @@
 | `BudgetMeter` | `components/budget/budget-meter.tsx` | 사용액·잔여·사용률·초과 표시 |
 | `useTransactionDialog()` | `components/transaction/transaction-dialog-provider.tsx` | 어디서든 거래 추가/수정 다이얼로그 열기 |
 | `NAV_ITEMS`, `isActivePath` | `components/app-shell/nav-items.ts` | 사이드바·하단 탭 공용 메뉴 |
-| shadcn `ui/*` | `components/ui/` | Button, Card, Dialog, Sheet, AlertDialog, Select, ToggleGroup 등 |
+| shadcn `ui/*` | `components/ui/` | Button, Card, Dialog, Sheet, AlertDialog, Select, ToggleGroup, Checkbox 등 |
 
 ## 상태 관리
 
@@ -37,6 +37,7 @@
 | 내비 | `MobileHeader` + `BottomNav` | `Sidebar` (접기 가능, w-56 ↔ w-16) |
 | 거래 폼 | 하단 `Sheet` | `Dialog` (SSR·하이드레이션 중엔 Dialog) |
 | 거래 목록 | `TransactionCardList` | `TransactionTable` |
+| 거래 일괄 편집 | `TransactionList`가 선택 상태·동작 바를 갖고 위 두 목록을 함께 렌더 (모바일은 "선택" 모드) | 동일 (표 체크박스 열) |
 | 거래 추가 | `QuickAddFab` (항상 표시) | 동일 |
 
 FAB 기본 날짜: `?date=` → 이번 달이 아닌 `?month=`의 1일 → 오늘.

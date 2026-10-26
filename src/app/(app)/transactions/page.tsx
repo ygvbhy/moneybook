@@ -7,10 +7,9 @@ import { materializeRecurring } from "@/server/recurring";
 import { listTransactions, parseListParams } from "@/server/transactions";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { PageEmpty, PageHeader } from "@/components/app-shell/page-header";
-import { TransactionCardList } from "@/components/transaction/transaction-card-list";
 import { TransactionCsvMenu } from "@/components/transaction/transaction-csv-menu";
 import { TransactionFilters } from "@/components/transaction/transaction-filters";
-import { TransactionTable } from "@/components/transaction/transaction-table";
+import { TransactionList } from "@/components/transaction/transaction-list";
 
 export default async function TransactionsPage({ searchParams }: PageProps<"/transactions">) {
   await requireSession();
@@ -93,14 +92,7 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
           />
         )
       ) : (
-        <>
-          <div className="hidden md:block">
-            <TransactionTable transactions={transactions} />
-          </div>
-          <div className="md:hidden">
-            <TransactionCardList transactions={transactions} showYear={!!params.period} />
-          </div>
-        </>
+        <TransactionList transactions={transactions} categories={categories} showYear={!!params.period} />
       )}
     </>
   );

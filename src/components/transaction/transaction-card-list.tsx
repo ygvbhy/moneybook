@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { AmountText } from "@/components/transaction/amount-text";
 import { useTransactionDialog } from "@/components/transaction/transaction-dialog-provider";
 import { PAYMENT_METHOD_LABELS, TYPE_LABELS, formatDateLabel } from "@/lib/labels";
@@ -8,8 +9,14 @@ import type { TransactionDto } from "@/server/transactions";
 export function TransactionCardList({
   transactions,
   showYear = false,
+  selectMode,
+  selectedIds,
+  onToggle,
 }: {
   transactions: TransactionDto[];
+  selectMode: boolean;
+  selectedIds: Set<string>;
+  onToggle: (id: string) => void;
   showYear?: boolean;
 }) {
   const { openEdit } = useTransactionDialog();
@@ -31,14 +38,22 @@ export function TransactionCardList({
           <ul className="flex flex-col gap-2">
             {g.items.map((tx) => {
               const label = [tx.merchant, tx.item].filter(Boolean).join(" · ");
+              const selected = selectedIds.has(tx.id);
               return (
                 <li key={tx.id}>
                   <button
                     type="button"
-                    onClick={() => openEdit(tx)}
+                    onClick={() => (selectMode ? onToggle(tx.id) : openEdit(tx))}
+                    aria-pressed={selectMode ? selected : undefined}
                     className="flex w-full items-center justify-between gap-3 rounded-xl border bg-card p-3 text-left outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
-                    <span className="flex min-w-0 flex-col gap-0.5">
+                    {selectMode &&
+                      (selected ? (
+                        <CheckCircle2Icon aria-hidden className="size-5 shrink-0 text-primary" />
+                      ) : (
+                        <CircleIcon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+                      ))}
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="truncate text-sm font-medium">
                         {TYPE_LABELS[tx.type]} · {tx.categoryName}
                         {tx.categoryArchived ? " (보관됨)" : ""}

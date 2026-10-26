@@ -58,6 +58,8 @@ export async function updateX(id: string, input: unknown): Promise<ActionResult>
 | `auth.ts` | `logout()` | — | `redirect("/login")` |
 | `transactions.ts` | `createTransaction(input)` | `transactionSchema` | `{ id }` |
 | | `updateTransaction(id, input)` / `deleteTransaction(id)` | | — |
+| | `deleteTransactions(ids)` | id 배열 (중복 제거 후 1 ~ 5,000건) | `{ count }`. 이미 없는 id는 무시, 전부 없으면 `TX_NOT_FOUND` |
+| | `updateTransactionsCategory(input)` | `{ ids, categoryId }` (ids 규칙은 위와 같음) | `{ count }`. 규칙은 [knowledge/transaction.md](../knowledge/transaction.md) "일괄 편집" |
 | | `exportTransactionsCsv(input)` | `{ scope: "filtered", params? }` (`/transactions` search params) \| `{ scope: "all" }` | `{ filename, csv, count }` (읽기 전용) |
 | | `importTransactionsCsv(text)` | CSV 문자열 (≤ 800KB) | `{ count }`. 행 오류는 `fieldErrors.rows`에 `"N행: 메시지"` 목록 |
 | `categories.ts` | `createCategory(input)` | `categorySchema` | `{ id }` |

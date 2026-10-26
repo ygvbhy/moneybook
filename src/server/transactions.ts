@@ -13,7 +13,14 @@ import {
   type TransactionInput,
 } from "@/lib/validation/transaction";
 import type { Prisma } from "@/generated/prisma/client";
-import { ServiceError, TX_NOT_FOUND, prismaCode } from "@/server/service-error";
+import {
+  CATEGORY_ARCHIVED,
+  CATEGORY_MISSING,
+  CATEGORY_TYPE_MISMATCH,
+  ServiceError,
+  TX_NOT_FOUND,
+  prismaCode,
+} from "@/server/service-error";
 
 export type TransactionDto = {
   id: string;
@@ -54,12 +61,12 @@ export function toTransactionDto(row: TxRow): TransactionDto {
 /** 카테고리 존재, 유형 일치, 보관 여부 검증. currentCategoryId와 같은 보관 카테고리는 허용 */
 async function assertCategoryUsable(input: TransactionInput, currentCategoryId?: string) {
   const category = await db.category.findUnique({ where: { id: input.categoryId } });
-  if (!category) throw new ServiceError("카테고리를 찾을 수 없습니다");
+  if (!category) throw new ServiceError(CATEGORY_MISSING);
   if (category.type !== input.type) {
-    throw new ServiceError("거래 유형과 카테고리 유형이 일치하지 않습니다");
+    throw new ServiceError(CATEGORY_TYPE_MISMATCH);
   }
   if (category.archivedAt !== null && category.id !== currentCategoryId) {
-    throw new ServiceError("보관된 카테고리는 사용할 수 없습니다");
+    throw new ServiceError(CATEGORY_ARCHIVED);
   }
 }
 
@@ -105,6 +112,39 @@ export async function deleteTransaction(id: string): Promise<void> {
     if (prismaCode(e) === "P2025") throw new ServiceError(TX_NOT_FOUND);
     throw e;
   }
+}
+
+/** 선택한 거래 일괄 삭제. 이미 없는 id는 무시하고, 하나도 없으면 TX_NOT_FOUND */
+export async function deleteTransactions(ids: string[]): Promise<{ count: number }> {
+  const { count } = await db.transaction.deleteMany({ where: { id: { in: ids } } });
+  if (count === 0) throw new ServiceError(TX_NOT_FOUND);
+  return { count };
+}
+
+/**
+ * 선택한 거래의 카테고리 일괄 변경. 대상 카테고리는 활성이어야 하고 모든 거래와 유형이 같아야 한다
+ * (하나라도 다르면 아무것도 바꾸지 않는다). recurringExpenseId는 건드리지 않는다.
+ */
+export async function updateTransactionsCategory(
+  ids: string[],
+  categoryId: string,
+): Promise<{ count: number }> {
+  const category = await db.category.findUnique({ where: { id: categoryId } });
+  if (!category) throw new ServiceError(CATEGORY_MISSING);
+  if (category.archivedAt !== null) throw new ServiceError(CATEGORY_ARCHIVED);
+  const rows = await db.transaction.findMany({
+    where: { id: { in: ids } },
+    select: { type: true },
+  });
+  if (rows.length === 0) throw new ServiceError(TX_NOT_FOUND);
+  if (rows.some((r) => r.type !== category.type)) throw new ServiceError(CATEGORY_TYPE_MISMATCH);
+  // where에 type을 넣어 조회-갱신 사이 경합에도 유형이 어긋난 거래는 쓰지 않는다
+  const { count } = await db.transaction.updateMany({
+    where: { id: { in: ids }, type: category.type },
+    data: { categoryId },
+  });
+  if (count === 0) throw new ServiceError(TX_NOT_FOUND);
+  return { count };
 }
 
 export async function getTransaction(id: string): Promise<TransactionDto | null> {

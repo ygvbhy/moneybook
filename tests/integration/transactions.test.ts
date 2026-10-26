@@ -4,8 +4,10 @@ import { todayInSeoul } from "@/lib/date";
 import {
   createTransaction,
   deleteTransaction,
+  deleteTransactions,
   exportTransactionsCsv,
   updateTransaction,
+  updateTransactionsCategory,
 } from "@/server/actions/transactions";
 import { archiveCategory, createCategory } from "@/server/actions/categories";
 import {
@@ -562,5 +564,164 @@ describe("결제수단별 지출", () => {
 
   it("지출이 없으면 빈 배열", async () => {
     expect(await getPaymentMethodSpending("2026-10")).toEqual([]);
+  });
+});
+
+describe("일괄 삭제", () => {
+  it("3건 중 2건을 삭제하면 count 2이고 나머지는 남는다", async () => {
+    const a = await create();
+    const b = await create();
+    const c = await create();
+    expect(await deleteTransactions([a, b])).toEqual({ ok: true, data: { count: 2 } });
+    const left = await db.transaction.findMany({ select: { id: true } });
+    expect(left).toEqual([{ id: c }]);
+  });
+
+  it("일부가 이미 삭제됐으면 남은 수만 count로 돌려준다", async () => {
+    const a = await create();
+    const b = await create();
+    await deleteTransaction(a);
+    expect(await deleteTransactions([a, b])).toEqual({ ok: true, data: { count: 1 } });
+    expect(await db.transaction.count()).toBe(0);
+  });
+
+  it("전부 없는 id면 안내 메시지", async () => {
+    expect(await deleteTransactions(["nope1", "nope2"])).toEqual({ ok: false, error: MSG_GONE });
+  });
+
+  it.each([[[]], ["abc"], [null], [[1, 2]], [[""]], [{}]])(
+    "잘못된 입력 %j은 잘못된 요청입니다",
+    async (input) => {
+      await create();
+      expect(await deleteTransactions(input)).toEqual({ ok: false, error: "잘못된 요청입니다" });
+      expect(await db.transaction.count()).toBe(1);
+    },
+  );
+
+  it("중복 id는 한 번만 처리한다", async () => {
+    const a = await create();
+    expect(await deleteTransactions([a, a, a])).toEqual({ ok: true, data: { count: 1 } });
+  });
+
+  it("5,001개 고유 id는 상한 오류이고 DB는 그대로다", async () => {
+    await create();
+    const ids = Array.from({ length: 5001 }, (_, i) => `id-${i}`);
+    expect(await deleteTransactions(ids)).toEqual({
+      ok: false,
+      error: "한 번에 최대 5,000건까지 처리할 수 있습니다",
+    });
+    expect(await db.transaction.count()).toBe(1);
+  });
+
+  it("중복을 제거하면 5,000건 이하인 요청은 상한에 걸리지 않는다", async () => {
+    const a = await create();
+    const ids = Array.from({ length: 5001 }, () => a);
+    expect(await deleteTransactions(ids)).toEqual({ ok: true, data: { count: 1 } });
+  });
+});
+
+describe("일괄 카테고리 변경", () => {
+  it("지출 2건을 다른 지출 카테고리로 바꾼다", async () => {
+    const transport = await categoryId("교통");
+    const a = await create();
+    const b = await create();
+    const r = await updateTransactionsCategory({ ids: [a, b], categoryId: transport });
+    expect(r).toEqual({ ok: true, data: { count: 2 } });
+    expect((await getTransaction(a))?.categoryId).toBe(transport);
+    expect((await getTransaction(b))?.categoryId).toBe(transport);
+  });
+
+  it("수입·지출이 섞이면 거부되고 아무것도 바뀌지 않는다", async () => {
+    const transport = await categoryId("교통");
+    const a = await create();
+    const inc = await createTransaction(txInput({ type: "INCOME", categoryId: salary }));
+    const incId = inc.ok ? inc.data!.id : "";
+    const r = await updateTransactionsCategory({ ids: [a, incId], categoryId: transport });
+    expect(r).toEqual({ ok: false, error: "거래 유형과 카테고리 유형이 일치하지 않습니다" });
+    expect((await getTransaction(a))?.categoryId).toBe(food);
+    expect((await getTransaction(incId))?.categoryId).toBe(salary);
+  });
+
+  it("지출 거래를 수입 카테고리로 바꾸면 거부된다", async () => {
+    const a = await create();
+    const r = await updateTransactionsCategory({ ids: [a], categoryId: salary });
+    expect(r).toEqual({ ok: false, error: "거래 유형과 카테고리 유형이 일치하지 않습니다" });
+    expect((await getTransaction(a))?.categoryId).toBe(food);
+  });
+
+  it("보관 카테고리로는 바꿀 수 없다", async () => {
+    const transport = await categoryId("교통");
+    const a = await create();
+    await archiveCategory(transport);
+    const r = await updateTransactionsCategory({ ids: [a], categoryId: transport });
+    expect(r).toEqual({ ok: false, error: "보관된 카테고리는 사용할 수 없습니다" });
+    expect((await getTransaction(a))?.categoryId).toBe(food);
+  });
+
+  it("없는 카테고리면 거부된다", async () => {
+    const a = await create();
+    const r = await updateTransactionsCategory({ ids: [a], categoryId: "nope" });
+    expect(r).toEqual({ ok: false, error: "카테고리를 찾을 수 없습니다" });
+  });
+
+  it("보관 카테고리에 있던 거래를 활성 카테고리로 옮길 수 있다", async () => {
+    const transport = await categoryId("교통");
+    const a = await create();
+    await archiveCategory(food);
+    const r = await updateTransactionsCategory({ ids: [a], categoryId: transport });
+    expect(r).toEqual({ ok: true, data: { count: 1 } });
+    expect((await getTransaction(a))?.categoryId).toBe(transport);
+  });
+
+  it("고정지출이 만든 거래도 바꿀 수 있고 recurringExpenseId는 유지된다", async () => {
+    const transport = await categoryId("교통");
+    await createRecurring(
+      {
+        categoryId: food,
+        item: "월세",
+        amount: 500_000,
+        dayOfMonth: 25,
+        merchant: null,
+        memo: null,
+        paymentMethod: null,
+      } as Parameters<typeof createRecurring>[0],
+      "2026-10-21",
+    );
+    await materializeRecurring("2026-10-25");
+    const before = await db.transaction.findFirstOrThrow({
+      where: { recurringExpenseId: { not: null } },
+    });
+    const r = await updateTransactionsCategory({ ids: [before.id], categoryId: transport });
+    expect(r).toEqual({ ok: true, data: { count: 1 } });
+    const after = await db.transaction.findUniqueOrThrow({ where: { id: before.id } });
+    expect(after.categoryId).toBe(transport);
+    expect(after.recurringExpenseId).toBe(before.recurringExpenseId);
+  });
+
+  it("전부 없는 id면 안내 메시지", async () => {
+    const transport = await categoryId("교통");
+    const r = await updateTransactionsCategory({ ids: ["nope"], categoryId: transport });
+    expect(r).toEqual({ ok: false, error: MSG_GONE });
+  });
+
+  it.each([
+    [null],
+    [{ ids: [], categoryId: "x" }],
+    [{ ids: "a", categoryId: "x" }],
+    [{ ids: ["a"], categoryId: "" }],
+    [{ ids: ["a"] }],
+  ])("잘못된 입력 %j은 잘못된 요청입니다", async (input) => {
+    expect(await updateTransactionsCategory(input)).toEqual({
+      ok: false,
+      error: "잘못된 요청입니다",
+    });
+  });
+
+  it("5,001개 고유 id는 상한 오류", async () => {
+    const ids = Array.from({ length: 5001 }, (_, i) => `id-${i}`);
+    expect(await updateTransactionsCategory({ ids, categoryId: food })).toEqual({
+      ok: false,
+      error: "한 번에 최대 5,000건까지 처리할 수 있습니다",
+    });
   });
 });

@@ -36,3 +36,6 @@ export const TX_NOT_FOUND = "이미 삭제되었거나 존재하지 않는 거�
 export const RECURRING_NOT_FOUND = "이미 삭제되었거나 존재하지 않는 고정지출입니다";
 export const CATEGORY_NOT_FOUND = "이미 삭제되었거나 존재하지 않는 카테고리입니다";
 export const CATEGORY_DUPLICATE = "같은 이름의 카테고리가 있습니다(보관됨이면 복원하세요)";
+export const CATEGORY_MISSING = "카테고리를 찾을 수 없습니다";
+export const CATEGORY_TYPE_MISMATCH = "거래 유형과 카테고리 유형이 일치하지 않습니다";
+export const CATEGORY_ARCHIVED = "보관된 카테고리는 사용할 수 없습니다";
