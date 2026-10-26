@@ -6,11 +6,12 @@ import { PageEmpty, PageHeader } from "@/components/app-shell/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MonthlyTrendChart } from "@/components/dashboard/monthly-trend-chart";
 import { CategoryTotalsCard } from "@/components/report/category-totals-card";
+import { MerchantTotalsCard } from "@/components/report/merchant-totals-card";
 import { YearSwitcher } from "@/components/report/year-switcher";
 import { YearlyTable } from "@/components/report/yearly-table";
 import { getMonthlyTrend } from "@/server/dashboard";
 import { materializeRecurring } from "@/server/recurring";
-import { getYearCategoryTotals } from "@/server/reports";
+import { getYearCategoryTotals, getYearMerchantSpending } from "@/server/reports";
 
 function Stat({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -33,9 +34,10 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
   const yearParam = Array.isArray(sp.year) ? sp.year[0] : sp.year;
   const year = normalizeYearParam(yearParam, today);
 
-  const [months, categories] = await Promise.all([
+  const [months, categories, merchants] = await Promise.all([
     getMonthlyTrend(`${year}-12`, 12),
     getYearCategoryTotals(year),
+    getYearMerchantSpending(year),
   ]);
   const income = months.reduce((s, m) => s + m.income, 0);
   const expense = months.reduce((s, m) => s + m.expense, 0);
@@ -108,6 +110,7 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
               totals={categories.income}
             />
           </div>
+          <MerchantTotalsCard year={year} isCurrentYear={isCurrentYear} data={merchants} />
         </>
       )}
     </div>

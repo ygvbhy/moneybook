@@ -29,9 +29,10 @@
 
 - `?year=YYYY` (`normalizeYearParam`: 1900~9998 정수가 아니면 서울 기준 올해). 기간은 `[YYYY-01-01, (YYYY+1)-01-01)`.
 - 월별: `getMonthlyTrend("YYYY-12", 12)` 재사용 → 1~12월, 거래 없는 달·미래 달은 0. 연 총수입·총지출·순수입은 이 12개월 합(추가 쿼리 없음). 순수입 표기는 순현금흐름과 같음(양수 `+` 파랑, 음수 `-` 빨강).
-- 구성: 요약 3칸 → 월별 추이 막대 차트(`MonthlyTrendChart`) → 월별 표(월·수입·지출·순수입 + 합계 행) → 카테고리별 지출·수입.
+- 구성: 요약 3칸 → 월별 추이 막대 차트(`MonthlyTrendChart`) → 월별 표(월·수입·지출·순수입 + 합계 행) → 카테고리별 지출·수입 → 거래처별 지출.
 - 카테고리별 합계 `getYearCategoryTotals`: `groupBy(["categoryId","type"])` 1회, 유형별로 금액 내림차순(동률 `categoryId`), 보관 카테고리 포함 `(보관됨)`. 행마다 금액·비중(소수 1자리)·진행바.
-- 링크: 월 → `/transactions?month=YYYY-MM`, 카테고리 → `/transactions?from=YYYY-01-01&to=YYYY-12-31&type=<T>&category=<id>` (올해가 아니면 `month=YYYY-12` 추가 → 월별로 돌아가면 그 해 12월).
+- 거래처별 지출 `getYearMerchantSpending`: 지출만 `groupBy(["merchant"])` 1회. 상위 10곳(`MERCHANT_RANK_LIMIT`), 금액 내림차순, 동률은 거래처 이름 코드포인트 순(로캘 영향 방지로 `localeCompare` 안 씀). 거래처 이름은 저장된 문자열 그대로 묶는다(대소문자·표기가 다르면 별도 행). 비중 분모는 미입력 포함 연 총지출(카테고리 카드와 같은 기준). 거래처 미입력 지출은 순위에서 빼고 금액이 있으면 "거래처 미입력 지출 N원은 순위에서 제외했습니다". 거래처 입력 지출이 없으면 "거래처가 입력된 지출이 없습니다".
+- 링크: 월 → `/transactions?month=YYYY-MM`, 카테고리 → `/transactions?from=YYYY-01-01&to=YYYY-12-31&type=<T>&category=<id>` (올해가 아니면 `month=YYYY-12` 추가 → 월별로 돌아가면 그 해 12월). 거래처 → `/transactions?from=YYYY-01-01&to=YYYY-12-31&type=EXPENSE&q=<거래처>` (같은 `month` 규칙). 거래처는 정확 일치가 아니라 기존 검색(`q`, 거래처·구매 항목·메모 포함, 대소문자 무시)이라 목록 합계가 순위 금액보다 클 수 있다(예: "GS" → "GS25"도 포함).
 - 연 거래가 0건이면 요약 3칸(0)과 "이 해에는 거래가 없습니다"만 표시.
 
 ## 순수 집계 함수 (`src/lib/aggregate.ts`)
