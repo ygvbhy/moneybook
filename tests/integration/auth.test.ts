@@ -39,8 +39,8 @@ describe("login", () => {
     expect(rows[0].tokenHash).toBe(hashToken(token));
     expect(rows[0].tokenHash).not.toBe(token);
     const days = (rows[0].expiresAt.getTime() - Date.now()) / 86_400_000;
-    expect(days).toBeGreaterThan(29.9);
-    expect(days).toBeLessThanOrEqual(30);
+    expect(days).toBeGreaterThan(6.9);
+    expect(days).toBeLessThanOrEqual(7);
     expect(testCookies.getOptions(SESSION_COOKIE)).toMatchObject({
       httpOnly: true,
       sameSite: "lax",
@@ -154,6 +154,135 @@ describe("login", () => {
     await fail();
     expect(await db.loginAttempt.count({ where: { ipHash: "x" } })).toBe(0);
     expect(await db.session.count()).toBe(0);
+  });
+});
+
+describe("신뢰 IP 예외와 성공 기록 정리", () => {
+  const HOUR = 3600_000;
+  const DAY = 24 * HOUR;
+  const GLOBAL_MSG = /^로그인 시도가 너무 많습니다\. \d+분 후 다시 시도하세요$/;
+
+  // 다른 IP들의 최근 실패 30행 -> 신뢰 없는 IP의 다음 시도는 전체 31번째
+  async function seedGlobalFailures() {
+    await db.loginAttempt.createMany({
+      data: Array.from({ length: 30 }, (_, i) => ({ ipHash: `other-${i}`, success: false })),
+    });
+  }
+  async function myIpHash() {
+    await fail();
+    const row = await db.loginAttempt.findFirstOrThrow({ where: { ipHash: { not: { startsWith: "other-" } } } });
+    await db.loginAttempt.delete({ where: { id: row.id } });
+    return row.ipHash;
+  }
+
+  it("신뢰 기록이 없는 IP는 전체 한도 초과 시 차단된다", async () => {
+    await seedGlobalFailures();
+    const r = await login(null, { username: USER, password: PASS });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(GLOBAL_MSG);
+  });
+
+  it("29일 전 성공 기록이 있는 IP는 전체 한도와 무관하게 비밀번호 검사로 진행한다", async () => {
+    const ipHash = await myIpHash();
+    await db.loginAttempt.create({
+      data: { ipHash, success: true, createdAt: new Date(Date.now() - 29 * DAY) },
+    });
+    await seedGlobalFailures();
+    await expect(login(null, { username: USER, password: PASS })).rejects.toThrow("REDIRECT:/");
+  });
+
+  it("신뢰 IP도 틀린 비밀번호는 거부하고 IP당 5회 한도는 유지된다", async () => {
+    const ipHash = await myIpHash();
+    await db.loginAttempt.create({
+      data: { ipHash, success: true, createdAt: new Date(Date.now() - DAY) },
+    });
+    await seedGlobalFailures();
+    for (let i = 0; i < 5; i++) expect(await fail()).toEqual({ ok: false, error: MSG });
+    const r = await fail();
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(GLOBAL_MSG);
+  });
+
+  it("31일 전 성공 기록만 있는 IP는 신뢰 IP가 아니다", async () => {
+    const ipHash = await myIpHash();
+    await db.loginAttempt.create({
+      data: { ipHash, success: true, createdAt: new Date(Date.now() - 31 * DAY) },
+    });
+    await seedGlobalFailures();
+    const r = await login(null, { username: USER, password: PASS });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(GLOBAL_MSG);
+  });
+
+  it("정리: 25시간 전 성공 기록은 유지하고 31일 전 성공 기록은 삭제한다", async () => {
+    await db.loginAttempt.createMany({
+      data: [
+        { ipHash: "keep", success: true, createdAt: new Date(Date.now() - 25 * HOUR) },
+        { ipHash: "drop", success: true, createdAt: new Date(Date.now() - 31 * DAY) },
+      ],
+    });
+    await fail();
+    expect(await db.loginAttempt.count({ where: { ipHash: "keep" } })).toBe(1);
+    expect(await db.loginAttempt.count({ where: { ipHash: "drop" } })).toBe(0);
+  });
+});
+
+describe("세션 미사용 만료", () => {
+  const HOUR = 3600_000;
+  const DAY = 24 * HOUR;
+
+  async function seedSession(createdAt: Date, expiresAt: Date) {
+    testCookies.set(SESSION_COOKIE, "idle-token");
+    return db.session.create({
+      data: { tokenHash: hashToken("idle-token"), createdAt, expiresAt },
+    });
+  }
+  const expiry = async (id: string) =>
+    (await db.session.findUniqueOrThrow({ where: { id } })).expiresAt.getTime();
+
+  it("3일 전 생성·만료 2일 남은 세션은 지금 + 7일로 연장된다", async () => {
+    const s = await seedSession(new Date(Date.now() - 3 * DAY), new Date(Date.now() + 2 * DAY));
+    const got = await getSession();
+    expect(got?.expiresAt.getTime()).toBeCloseTo(Date.now() + 7 * DAY, -4);
+    expect(Math.abs((await expiry(s.id)) - (Date.now() + 7 * DAY))).toBeLessThan(60_000);
+  });
+
+  it("29일 전 생성된 세션은 생성 + 30일을 넘지 않는다", async () => {
+    const createdAt = new Date(Date.now() - 29 * DAY);
+    const s = await seedSession(createdAt, new Date(Date.now() + 1 * HOUR));
+    await getSession();
+    expect(await expiry(s.id)).toBe(createdAt.getTime() + 30 * DAY);
+  });
+
+  it("목표와 30분 차이면 갱신하지 않는다", async () => {
+    const expiresAt = new Date(Date.now() + 7 * DAY - 30 * 60_000);
+    const s = await seedSession(new Date(Date.now() - DAY), expiresAt);
+    await getSession();
+    expect(await expiry(s.id)).toBe(expiresAt.getTime());
+  });
+
+  it("목표와 61분 차이면 갱신한다", async () => {
+    const expiresAt = new Date(Date.now() + 7 * DAY - 61 * 60_000);
+    const s = await seedSession(new Date(Date.now() - DAY), expiresAt);
+    await getSession();
+    expect(await expiry(s.id)).toBeGreaterThan(expiresAt.getTime() + 60 * 60_000);
+  });
+
+  it("갱신 중 세션이 삭제되면(count 0) null을 반환한다", async () => {
+    const s = await seedSession(new Date(Date.now() - 3 * DAY), new Date(Date.now() + 2 * DAY));
+    vi.spyOn(db.session, "updateMany").mockImplementationOnce((async () => {
+      await db.session.deleteMany({ where: { id: s.id } });
+      return { count: 0 };
+    }) as never);
+    expect(await getSession()).toBeNull();
+  });
+
+  it("갱신이 예외를 던지면 로그만 남기고 기존 세션을 반환한다", async () => {
+    const s = await seedSession(new Date(Date.now() - 3 * DAY), new Date(Date.now() + 2 * DAY));
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(db.session, "updateMany").mockRejectedValueOnce(new Error("db down"));
+    expect((await getSession())?.id).toBe(s.id);
+    expect(err).toHaveBeenCalledWith("[session] refresh failed", "Error");
   });
 });
 

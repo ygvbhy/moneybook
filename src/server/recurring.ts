@@ -4,7 +4,7 @@ import { fromDbDate, shiftMonth, toDbDate } from "@/lib/date";
 import { dueDates, occurrenceOnOrAfter } from "@/lib/recurring";
 import type { RecurringInput } from "@/lib/validation/recurring";
 import type { Prisma } from "@/generated/prisma/client";
-import { RECURRING_NOT_FOUND, ServiceError, prismaCode } from "@/server/service-error";
+import { RECURRING_NOT_FOUND, ServiceError, logSafeError, prismaCode } from "@/server/service-error";
 
 export type RecurringDto = {
   id: string;
@@ -163,7 +163,7 @@ export async function materializeRecurring(today: string): Promise<void> {
     try {
       await db.$transaction((tx) => materializeOne(tx, row, today));
     } catch (e) {
-      console.error("[recurring] materialize failed", row.id, e);
+      console.error("[recurring] materialize failed", row.id, logSafeError(e));
     }
   }
 }

@@ -12,3 +12,16 @@ export const loginSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export const ADMIN_PASSWORD_MIN_LENGTH = 12;
+export const BCRYPT_MAX_BYTES = 72;
+
+export function adminPasswordError(password: string): string | null {
+  if ([...password].length < ADMIN_PASSWORD_MIN_LENGTH) {
+    return `비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}자 이상이어야 합니다`;
+  }
+  if (new TextEncoder().encode(password).length > BCRYPT_MAX_BYTES) {
+    return `비밀번호는 ${BCRYPT_MAX_BYTES}바이트 이하여야 합니다 (한글은 1자 3바이트)`;
+  }
+  return null;
+}

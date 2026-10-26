@@ -3,14 +3,26 @@ import { IP_LIMIT, GLOBAL_LIMIT, evaluateLoginLimit, limitFor, retryAfterMinutes
 
 describe("rate-limit 판정 (카운트는 현재 시도 포함)", () => {
   it("IP 실패 5회까지 허용", () => {
-    expect(evaluateLoginLimit({ ipFailures: 5, globalFailures: 5 }).blocked).toBe(false);
+    expect(evaluateLoginLimit({ ipFailures: 5, globalFailures: 5, trustedIp: false }).blocked).toBe(false);
   });
   it("6번째 시도는 IP 사유로 차단", () => {
-    expect(evaluateLoginLimit({ ipFailures: 6, globalFailures: 6 })).toEqual({ blocked: true, reason: "ip" });
+    expect(evaluateLoginLimit({ ipFailures: 6, globalFailures: 6, trustedIp: false })).toEqual({ blocked: true, reason: "ip" });
   });
   it("전체 30회까지 허용, 31번째 시도는 global 사유로 차단", () => {
-    expect(evaluateLoginLimit({ ipFailures: 1, globalFailures: 30 }).blocked).toBe(false);
-    expect(evaluateLoginLimit({ ipFailures: 1, globalFailures: 31 })).toEqual({ blocked: true, reason: "global" });
+    expect(evaluateLoginLimit({ ipFailures: 1, globalFailures: 30, trustedIp: false }).blocked).toBe(false);
+    expect(evaluateLoginLimit({ ipFailures: 1, globalFailures: 31, trustedIp: false })).toEqual({ blocked: true, reason: "global" });
+  });
+});
+
+describe("rate-limit 신뢰 IP 예외", () => {
+  it("신뢰 IP는 전체 실패가 31이어도 통과", () => {
+    expect(evaluateLoginLimit({ ipFailures: 1, globalFailures: 31, trustedIp: true }).blocked).toBe(false);
+  });
+  it("신뢰 IP도 IP 실패가 6이면 ip 사유로 차단", () => {
+    expect(evaluateLoginLimit({ ipFailures: 6, globalFailures: 6, trustedIp: true })).toEqual({
+      blocked: true,
+      reason: "ip",
+    });
   });
 });
 

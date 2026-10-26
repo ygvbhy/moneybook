@@ -4,7 +4,7 @@ Vitest (`vitest.config.mts`), 두 프로젝트.
 
 | 프로젝트 | 경로 | 대상 | 특징 |
 | --- | --- | --- | --- |
-| `unit` | `tests/unit/**/*.test.ts` | `src/lib/*` 순수 함수, 스키마 | DB 없음 |
+| `unit` | `tests/unit/**/*.test.ts` | `src/lib/*` 순수 함수, 스키마, `proxy`(`next/experimental/testing/server`), `logSafeError` | DB 없음 |
 | `integration` | `tests/integration/**/*.test.ts` | action·서비스 + 실제 Postgres | 파일 순차 실행, `DATABASE_URL`을 `TEST_DATABASE_URL`로 교체 |
 
 ## 명령

@@ -1,7 +1,7 @@
 import "server-only";
 import type { ZodError } from "zod";
 import type { ActionResult } from "@/lib/action-result";
-import { ServiceError } from "@/server/service-error";
+import { ServiceError, logSafeError } from "@/server/service-error";
 
 export function validationFailure(error: ZodError): ActionResult<never> {
   return {
@@ -22,7 +22,7 @@ export async function runService<T = void>(fn: () => Promise<T>): Promise<Action
     return data === undefined ? { ok: true } : { ok: true, data };
   } catch (e) {
     if (e instanceof ServiceError) return { ok: false, error: e.message };
-    console.error("[action] unexpected error", e);
+    console.error("[action] unexpected error", logSafeError(e));
     return { ok: false, error: "처리 중 오류가 발생했습니다. 잠시 후 다시 시도하세요" };
   }
 }

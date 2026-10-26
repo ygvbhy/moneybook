@@ -2,6 +2,8 @@
 export const IP_LIMIT = 5;
 export const GLOBAL_LIMIT = 30;
 export const WINDOW_MINUTES = 15;
+/** 이 기간 안에 로그인에 성공한 IP는 전체 한도(GLOBAL_LIMIT)에서 제외한다 */
+export const TRUSTED_IP_DAYS = 30;
 
 export type LoginLimitResult =
   | { blocked: false; reason: null }
@@ -10,9 +12,11 @@ export type LoginLimitResult =
 export function evaluateLoginLimit(counts: {
   ipFailures: number;
   globalFailures: number;
+  trustedIp: boolean;
 }): LoginLimitResult {
   if (counts.ipFailures > IP_LIMIT) return { blocked: true, reason: "ip" };
-  if (counts.globalFailures > GLOBAL_LIMIT) return { blocked: true, reason: "global" };
+  // 신뢰 IP는 다른 IP의 실패 누적(전체 잠금 DoS)에 영향받지 않는다. IP당 한도는 그대로 적용된다.
+  if (!counts.trustedIp && counts.globalFailures > GLOBAL_LIMIT) return { blocked: true, reason: "global" };
   return { blocked: false, reason: null };
 }
 

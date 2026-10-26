@@ -11,8 +11,8 @@
 | `RecurringExpense` | `categoryId`, `item`, `amount`, `dayOfMonth`, `merchant?`, `paymentMethod?`, `memo?`, `nextRunOn`(DATE), `lastRunOn?`(DATE) | Category `Restrict`. 인덱스 `nextRunOn` |
 | `MonthlyBudget` | `yearMonth`(PK, CHAR(7)), `totalAmount` | 월당 1행 |
 | `CategoryBudget` | `yearMonth`, `categoryId`, `amount` | `@@unique([yearMonth, categoryId])`, Category `Restrict` |
-| `Session` | `tokenHash`(unique), `expiresAt` | |
-| `LoginAttempt` | `ipHash`, `success`, `createdAt` | 인덱스 `createdAt`, `(ipHash, createdAt)` |
+| `Session` | `tokenHash`(unique), `expiresAt`, `createdAt` | `expiresAt`은 미사용 만료로 갱신된다(최대 `createdAt` + 30일) → [knowledge/auth.md](../knowledge/auth.md) |
+| `LoginAttempt` | `ipHash`, `success`, `createdAt` | 인덱스 `createdAt`, `(ipHash, createdAt)`. 실패 24시간, 성공 30일(신뢰 IP 근거) 보관 |
 
 Enum: `TransactionType { INCOME, EXPENSE }`, `PaymentMethod { CASH, BANK_TRANSFER, CREDIT_CARD, DEBIT_CARD, OTHER }`.
 

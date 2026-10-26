@@ -88,6 +88,15 @@ describe("toCsv", () => {
   });
 });
 
+describe("toCsv 수식 주입 방어", () => {
+  it("= + - @ ' 로 시작하는 셀 앞에 '를 붙인다", () => {
+    expect(toCsv([["=1+1", "+a", "-b", "@c", "'x", "정상"]])).toBe("'=1+1,'+a,'-b,'@c,''x,정상");
+  });
+  it("접두 뒤에 인용 규칙을 적용한다", () => {
+    expect(toCsv([["=a,b"]])).toBe("\"'=a,b\"");
+  });
+});
+
 describe("formatTransactionsCsv", () => {
   it("BOM, 한국어 라벨, 빈 셀로 출력한다", () => {
     const csv = formatTransactionsCsv([
@@ -319,5 +328,27 @@ describe("왕복", () => {
         },
       ],
     });
+  });
+});
+
+describe("수식 주입 방어 왕복", () => {
+  it("위험한 첫 글자의 메모를 원래 문자열로 복원한다", () => {
+    const memos = ['=HYPERLINK("x")', "'=a", "'안녕"];
+    const csv = formatTransactionsCsv(
+      memos.map((memo) => ({
+        type: "EXPENSE",
+        amount: 1000,
+        occurredOn: "2026-10-21",
+        categoryName: "식비",
+        merchant: null,
+        item: null,
+        purpose: null,
+        paymentMethod: null,
+        memo,
+      })),
+    );
+    const r = parseTransactionsCsv(csv, categories);
+    if (!r.ok) throw new Error("파싱 실패");
+    expect(r.inputs.map((i) => i.memo)).toEqual(memos);
   });
 });

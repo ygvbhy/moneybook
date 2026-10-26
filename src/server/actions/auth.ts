@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getClientIpHash } from "@/lib/auth/ip";
 import { verifyAdminCredentials } from "@/lib/auth/password";
 import {
+  TRUSTED_IP_DAYS,
   WINDOW_MINUTES,
   evaluateLoginLimit,
   limitFor,
@@ -21,7 +22,15 @@ const INVALID_CREDENTIALS = "아이디 또는 비밀번호가 올바르지 않�
 async function cleanup() {
   const now = Date.now();
   await Promise.all([
-    db.loginAttempt.deleteMany({ where: { createdAt: { lt: new Date(now - 24 * 3600_000) } } }),
+    // 성공 기록은 신뢰 IP 판정 근거라 TRUSTED_IP_DAYS 동안 보관한다
+    db.loginAttempt.deleteMany({
+      where: {
+        OR: [
+          { success: false, createdAt: { lt: new Date(now - 24 * 3600_000) } },
+          { success: true, createdAt: { lt: new Date(now - TRUSTED_IP_DAYS * 24 * 3600_000) } },
+        ],
+      },
+    }),
     db.session.deleteMany({ where: { expiresAt: { lt: new Date(now) } } }),
   ]);
 }
@@ -50,13 +59,15 @@ export async function login(
   const attempt = await db.loginAttempt.create({ data: { ipHash, success: false } });
   await cleanup(); // 시도할 때마다 오래된 시도·만료 세션 정리
 
-  // ② 최근 15분 실패 수 (방금 넣은 행 포함)
+  // ② 최근 15분 실패 수 (방금 넣은 행 포함) + 최근 30일 안에 성공한 적 있는 IP인지
   const since = new Date(Date.now() - WINDOW_MINUTES * 60_000);
-  const [ipFailures, globalFailures] = await Promise.all([
+  const trustedSince = new Date(Date.now() - TRUSTED_IP_DAYS * 24 * 3600_000);
+  const [ipFailures, globalFailures, trustedCount] = await Promise.all([
     db.loginAttempt.count({ where: { ipHash, success: false, createdAt: { gte: since } } }),
     db.loginAttempt.count({ where: { success: false, createdAt: { gte: since } } }),
+    db.loginAttempt.count({ where: { ipHash, success: true, createdAt: { gte: trustedSince } } }),
   ]);
-  const limit = evaluateLoginLimit({ ipFailures, globalFailures });
+  const limit = evaluateLoginLimit({ ipFailures, globalFailures, trustedIp: trustedCount > 0 });
   if (limit.blocked) {
     // 차단된 시도는 기록으로 남기지 않는다(남기면 재시도마다 잠금이 연장된다)
     await db.loginAttempt.delete({ where: { id: attempt.id } });

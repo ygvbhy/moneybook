@@ -9,7 +9,7 @@ prisma.config.ts         Prisma CLI 설정 (DIRECT_DATABASE_URL, seed 명령)
 scripts/hash-password.ts 관리자 비밀번호 bcrypt 해시 생성
 docker/init.sql          ledger_test DB 생성
 src/
-  proxy.ts               쿠키 존재 확인 → /login 리다이렉트 (Next 16의 middleware 대체)
+  proxy.ts               CSP nonce + 쿠키 존재 확인 → /login 리다이렉트 (Next 16의 middleware 대체)
   app/
     layout.tsx           루트: 폰트, ThemeProvider, Toaster
     error.tsx, not-found.tsx
@@ -30,15 +30,15 @@ src/
     db.ts                Prisma 싱글턴 (server-only)
     auth/                세션·비밀번호·IP·rate limit (rate-limit.ts 외 server-only)
     validation/          Zod 스키마 (도메인별 파일)
-    date.ts money.ts budget.ts recurring.ts aggregate.ts labels.ts type-toggle.ts action-result.ts utils.ts
+    date.ts money.ts budget.ts recurring.ts aggregate.ts labels.ts type-toggle.ts action-result.ts utils.ts csp.ts
   server/                서버 전용 (모든 파일 `import "server-only"`)
     <domain>.ts          서비스: Prisma 쿼리, DTO 타입·변환
     actions/<domain>.ts  Server Action ("use server")
     action-utils.ts      runService, validationFailure
-    service-error.ts     ServiceError, prismaCode, 공용 오류 메시지
+    service-error.ts     ServiceError, prismaCode, logSafeError(로그용 오류 축약), 공용 오류 메시지
   generated/prisma/      Prisma 생성 클라이언트 (git 미추적)
 tests/
-  unit/                  lib/* 순수 함수
+  unit/                  lib/* 순수 함수, proxy, service-error
   integration/           실제 테스트 DB로 action·서비스 검증
   setup/                 global-setup(마이그레이션), mocks(next/*), db 헬퍼
   stubs/server-only.ts   Vitest용 server-only 대체

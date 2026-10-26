@@ -105,13 +105,22 @@ export function parseCsv(text: string): { ok: true; rows: string[][] } | { ok: f
   return { ok: true, rows };
 }
 
+// 엑셀이 수식으로 실행하지 않도록 위험한 첫 글자 앞에 '를 붙인다.
+// 그래서 toCsv↔parseCsv 왕복은 셀 수준에서 성립하지 않고, '를 되돌리는 parseTransactionsCsv(거래 수준)에서만 성립한다
 function escapeCell(cell: string): string {
-  return /[",\r\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
+  const safe = /^[=+\-@\t\r']/.test(cell) ? `'${cell}` : cell;
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 /** `,` `"` 개행이 든 셀만 따옴표로 감싸고 행은 CRLF로 잇는다 */
 export function toCsv(rows: readonly (readonly string[])[]): string {
   return rows.map((r) => r.map(escapeCell).join(",")).join("\r\n");
+}
+
+// escapeCell이 붙인 '만 제거한다. 원래 값이 '로 시작해도 항상 '가 하나 더 붙으므로 손실 없이 복원된다
+function unescapeCell(cell: string): string {
+  const t = cell.trim();
+  return /^'[=+\-@']/.test(t) ? t.slice(1) : t;
 }
 
 /** BOM(엑셀 한글 호환) + 헤더 + 거래 행. null은 빈 셀이다 */
@@ -167,7 +176,7 @@ export function parseTransactionsCsv(
 
   const col = Object.fromEntries(known.map((h) => [h, header.indexOf(h)]));
   const records = dataRows
-    .map((cells, i) => ({ rowNo: i + 2, cells: cells.map((c) => c.trim()) }))
+    .map((cells, i) => ({ rowNo: i + 2, cells: cells.map(unescapeCell) }))
     .filter((r) => r.cells.some((c) => c !== ""));
   if (records.length === 0) return { ok: false, error: "가져올 거래가 없습니다" };
   if (records.length > MAX_IMPORT_ROWS) {

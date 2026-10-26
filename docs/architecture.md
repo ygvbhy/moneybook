@@ -36,7 +36,7 @@ components/ (Client Component)           ──쓰기──▶ server/actions/*.
 
 ## 읽기 흐름 (페이지 렌더)
 
-1. `src/proxy.ts`: `ledger_session` 쿠키가 없으면 `/login`으로 리다이렉트 (존재 여부만 확인, DB 접근 없음). `next-action` 헤더 요청은 통과시킨다.
+1. `src/proxy.ts`: 요청마다 CSP nonce를 만들어 요청 헤더(`x-nonce`, `Content-Security-Policy`)와 응답 헤더에 넣는다. `ledger_session` 쿠키가 없으면 `/login`으로 리다이렉트 (존재 여부만 확인, DB 접근 없음). `next-action` 헤더 요청과 `/login`으로 시작하는 경로는 쿠키 검사를 생략한다.
 2. `src/app/(app)/layout.tsx`: `requireSession()` → 카테고리 목록·최근 카테고리 조회 → `TransactionDialogProvider`에 전달.
 3. `page.tsx`: `requireSession()` → `todayInSeoul()` → `await materializeRecurring(today)` → `searchParams` 정규화 → `Promise.all`로 서비스 호출 → 컴포넌트에 DTO 전달.
 
@@ -52,7 +52,7 @@ components/ (Client Component)           ──쓰기──▶ server/actions/*.
 
 | 위치 | 확인 내용 |
 | --- | --- |
-| `src/proxy.ts` | 쿠키 존재 (낙관적 차단) |
+| `src/proxy.ts` | 쿠키 존재 (낙관적 차단), CSP nonce |
 | `requireSession()` (`src/lib/auth/dal.ts`) | DB 세션 유효성. 모든 페이지·action에서 호출 |
 
 규칙은 [knowledge/auth.md](../knowledge/auth.md).
@@ -71,6 +71,16 @@ components/ (Client Component)           ──쓰기──▶ server/actions/*.
 - `loading.tsx`: 라우트별 `PageSkeleton`.
 - 예상된 실패는 `ServiceError`(메시지를 사용자에게 그대로 노출), 그 외는 서버 로그 + 일반 메시지.
 
-## 보안 헤더 (`next.config.ts`)
+## 보안 헤더
 
-`X-Frame-Options: DENY`, `Referrer-Policy: same-origin`, `X-Content-Type-Options: nosniff`, `X-Robots-Tag: noindex`.
+| 위치 | 헤더 |
+| --- | --- |
+| `next.config.ts` (정적) | `X-Frame-Options: DENY`, `Referrer-Policy: same-origin`, `X-Content-Type-Options: nosniff`, `X-Robots-Tag: noindex`, `Permissions-Policy`, `Cross-Origin-Opener-Policy: same-origin`, `poweredByHeader: false` |
+| `src/proxy.ts` (요청마다) | `Content-Security-Policy` — 정책은 `src/lib/csp.ts` `buildCsp` |
+| Vercel (플랫폼 기본) | `Strict-Transport-Security` — 앱에서 설정하지 않는다 |
+
+CSP 규칙:
+- `script-src 'self' 'nonce-…' 'strict-dynamic'` (dev만 `'unsafe-eval'`). Next가 요청 CSP 헤더에서 nonce를 읽어 프레임워크 스크립트에 붙이고, 루트 레이아웃이 `headers()`의 `x-nonce`를 `ThemeProvider nonce`로 넘긴다. 그래서 루트 레이아웃이 동적이고 모든 페이지(`/_not-found` 포함)가 동적 렌더링이다.
+- `style-src 'self' 'unsafe-inline'`에는 nonce를 넣지 않는다. nonce가 있으면 `'unsafe-inline'`이 무시되어 Radix·Recharts의 `style` 속성이 막힌다.
+- `upgrade-insecure-requests`는 넣지 않는다 (리소스가 모두 same-origin이고, 로컬 http `next start`를 깨뜨림).
+- 새 인라인 `<script>`나 외부 스크립트·폰트·이미지 도메인을 추가하면 `buildCsp`도 고친다. Vercel Toolbar는 `'strict-dynamic'`과 호환되지 않아 끈다(README).

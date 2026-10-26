@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { transactionSchema } from "@/lib/validation/transaction";
 import { categoryBudgetSchema, totalBudgetSchema } from "@/lib/validation/budget";
 import { categorySchema } from "@/lib/validation/category";
-import { loginSchema } from "@/lib/validation/auth";
+import { adminPasswordError, loginSchema } from "@/lib/validation/auth";
 
 const valid = {
   type: "EXPENSE",
@@ -108,5 +108,23 @@ describe("zod: 카테고리/인증", () => {
     expect(loginSchema.safeParse({ username: "a", password: "" }).success).toBe(false);
     expect(loginSchema.safeParse({ username: "a", password: "x" }).success).toBe(true);
     expect(loginSchema.safeParse({ username: "a", password: "x".repeat(201) }).success).toBe(false);
+  });
+});
+
+describe("adminPasswordError", () => {
+  it("11자는 오류", () => {
+    expect(adminPasswordError("a".repeat(11))).toContain("12자 이상");
+  });
+  it("12자는 통과", () => {
+    expect(adminPasswordError("a".repeat(12))).toBeNull();
+  });
+  it("한글 24자(72바이트)는 통과", () => {
+    expect(adminPasswordError("가".repeat(24))).toBeNull();
+  });
+  it("한글 25자(75바이트)는 오류", () => {
+    expect(adminPasswordError("가".repeat(25))).toContain("72바이트");
+  });
+  it("빈 문자열은 오류", () => {
+    expect(adminPasswordError("")).not.toBeNull();
   });
 });

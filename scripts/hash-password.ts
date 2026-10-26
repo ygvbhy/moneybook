@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { adminPasswordError } from "../src/lib/validation/auth";
 
 const COST = 12;
 
@@ -43,7 +44,8 @@ async function main() {
   const password = process.stdin.isTTY
     ? await readHidden("비밀번호 (입력이 표시되지 않습니다): ")
     : await readStdin();
-  if (!password) throw new Error("비밀번호가 비어 있습니다");
+  const error = adminPasswordError(password);
+  if (error) throw new Error(error);
   console.log(await bcrypt.hash(password, COST));
 }
 
