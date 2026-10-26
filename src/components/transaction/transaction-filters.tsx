@@ -13,13 +13,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { isValidPeriodDate, lastDayOfMonth } from "@/lib/date";
 import { PAYMENT_METHOD_LABELS, TYPE_LABELS } from "@/lib/labels";
 import type { CategoryDto } from "@/server/categories";
+import type { ListPeriod } from "@/server/transactions";
 
 const ALL = "all";
 
 type Props = {
   categories: CategoryDto[];
+  month: string;
+  period?: ListPeriod;
   type?: "INCOME" | "EXPENSE";
   categoryId?: string;
   paymentMethod?: string;
@@ -27,7 +31,16 @@ type Props = {
   sort: "asc" | "desc";
 };
 
-export function TransactionFilters({ categories, type, categoryId, paymentMethod, q, sort }: Props) {
+export function TransactionFilters({
+  categories,
+  month,
+  period,
+  type,
+  categoryId,
+  paymentMethod,
+  q,
+  sort,
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = useState(q ?? "");
@@ -42,6 +55,22 @@ export function TransactionFilters({ categories, type, categoryId, paymentMethod
     // 직접 push한 값의 응답은 한 번만 건너뛰고 기억을 지운다(이후 같은 값으로의 외부 이동은 동기화)
     if ((q ?? "") === lastPushedQ) setLastPushedQ(undefined);
     else setQuery(q ?? "");
+  }
+
+  // 기간 입력값: 입력 도중의 무효·빈 값은 로컬에만 두고, URL(props)이 바뀌면 맞춘다
+  const periodFrom = period && period !== "all" ? period.from : "";
+  const periodTo = period && period !== "all" ? period.to : "";
+  const [fromInput, setFromInput] = useState(periodFrom);
+  const [toInput, setToInput] = useState(periodTo);
+  const [prevFrom, setPrevFrom] = useState(periodFrom);
+  const [prevTo, setPrevTo] = useState(periodTo);
+  if (prevFrom !== periodFrom) {
+    setPrevFrom(periodFrom);
+    setFromInput(periodFrom);
+  }
+  if (prevTo !== periodTo) {
+    setPrevTo(periodTo);
+    setToInput(periodTo);
   }
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -65,6 +94,26 @@ export function TransactionFilters({ categories, type, categoryId, paymentMethod
     }, 300);
   }
 
+  function onFromChange(value: string) {
+    setFromInput(value);
+    if (!isValidPeriodDate(value)) return;
+    // 시작일이 URL에 반영된 종료일 뒤로 가면 종료일을 같은 날로 맞춘다 (입력 중인 종료일은 무효일 수 있음)
+    if (value > periodTo) {
+      setToInput(value);
+      update({ from: value, to: value });
+    } else update({ from: value });
+  }
+
+  function onToChange(value: string) {
+    setToInput(value);
+    if (!isValidPeriodDate(value)) return;
+    // 종료일이 URL에 반영된 시작일 앞으로 가면 시작일을 같은 날로 맞춘다
+    if (value < periodFrom) {
+      setFromInput(value);
+      update({ from: value, to: value });
+    } else update({ to: value });
+  }
+
   const visible = categories.filter((c) => !type || c.type === type);
   const groups = (["EXPENSE", "INCOME"] as const)
     .map((t) => ({ t, items: visible.filter((c) => c.type === t) }))
@@ -72,6 +121,47 @@ export function TransactionFilters({ categories, type, categoryId, paymentMethod
 
   return (
     <div className="mb-4 flex flex-wrap items-end gap-3" role="search" aria-label="거래 필터">
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        spacing={0}
+        value={period === "all" ? "all" : period ? "range" : "month"}
+        onValueChange={(v) => {
+          if (v === "month") update({ from: undefined, to: undefined, range: undefined });
+          else if (v === "range") {
+            update({
+              from: `${month}-01`,
+              to: `${month}-${String(lastDayOfMonth(month)).padStart(2, "0")}`,
+              range: undefined,
+            });
+          } else if (v === "all") update({ range: "all", from: undefined, to: undefined });
+        }}
+        aria-label="기간"
+      >
+        <ToggleGroupItem value="month">월별</ToggleGroupItem>
+        <ToggleGroupItem value="range">기간</ToggleGroupItem>
+        <ToggleGroupItem value="all">전체 기간</ToggleGroupItem>
+      </ToggleGroup>
+
+      {period && period !== "all" && (
+        <>
+          <Input
+            type="date"
+            value={fromInput}
+            onChange={(e) => onFromChange(e.target.value)}
+            aria-label="시작일"
+            className="w-40"
+          />
+          <Input
+            type="date"
+            value={toInput}
+            onChange={(e) => onToChange(e.target.value)}
+            aria-label="종료일"
+            className="w-40"
+          />
+        </>
+      )}
+
       <ToggleGroup
         type="single"
         variant="outline"

@@ -18,12 +18,13 @@ src/
       page.tsx           / 대시보드
       calendar/          /calendar
       transactions/      /transactions
+      reports/           /reports 연간 요약
       recurring/         /recurring 고정지출
       budgets/           /budgets 예산 + 카테고리 관리
   components/
     ui/                  shadcn 생성 컴포넌트
     app-shell/           사이드바, 하단 탭, 모바일 헤더, FAB, PageHeader/PageEmpty, PageSkeleton, 테마 토글, NAV_ITEMS
-    transaction/ calendar/ dashboard/ budget/ recurring/   기능별 컴포넌트
+    transaction/ calendar/ dashboard/ budget/ recurring/ report/   기능별 컴포넌트
     amount-input.tsx     금액 입력 (공용)
     month-switcher.tsx   월 이동 링크 (공용)
   lib/                   순수 함수·스키마·상수 (클라이언트에서도 import 가능, 예외 아래)

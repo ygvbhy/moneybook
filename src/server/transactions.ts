@@ -1,6 +1,12 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { fromDbDate, monthRange, normalizeMonthParam, toDbDate } from "@/lib/date";
+import {
+  fromDbDate,
+  isValidPeriodDate,
+  monthRange,
+  normalizeMonthParam,
+  toDbDate,
+} from "@/lib/date";
 import {
   PAYMENT_METHODS,
   TRANSACTION_TYPES,
@@ -125,8 +131,12 @@ export async function importTransactions(inputs: TransactionInput[]): Promise<{ 
 
 export type SortDirection = "asc" | "desc";
 
+/** 조회 기간. 양끝 포함 날짜 범위 또는 전체 기간. 없으면(ListParams.period 미지정) month 범위 */
+export type ListPeriod = { from: string; to: string } | "all";
+
 export type ListParams = {
   month: string;
+  period?: ListPeriod;
   type?: "INCOME" | "EXPENSE";
   categoryId?: string;
   paymentMethod?: (typeof PAYMENT_METHODS)[number] | "none"; // "none" = 결제수단 미지정
@@ -135,11 +145,19 @@ export type ListParams = {
 };
 
 export async function listTransactions(params: ListParams): Promise<TransactionDto[]> {
-  const { start, endExclusive } = monthRange(params.month);
   const q = params.q?.trim();
+  let occurredOn: Prisma.TransactionWhereInput["occurredOn"];
+  if (params.period === "all") {
+    occurredOn = undefined;
+  } else if (params.period) {
+    occurredOn = { gte: toDbDate(params.period.from), lte: toDbDate(params.period.to) };
+  } else {
+    const { start, endExclusive } = monthRange(params.month);
+    occurredOn = { gte: toDbDate(start), lt: toDbDate(endExclusive) };
+  }
   const rows = await db.transaction.findMany({
     where: {
-      occurredOn: { gte: toDbDate(start), lt: toDbDate(endExclusive) },
+      ...(occurredOn ? { occurredOn } : {}),
       ...(params.type ? { type: params.type } : {}),
       ...(params.categoryId ? { categoryId: params.categoryId } : {}),
       ...(params.paymentMethod
@@ -179,6 +197,8 @@ const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v
  * month 오류 → today가 속한 달, type 알 수 없음 → 무시, category가 DB에 없으면 무시,
  * payment는 결제수단 값 또는 "none"(미지정)만 인정하고 나머지는 무시,
  * sort는 "asc"만 인정하고 나머지는 "desc", q는 trim 후 최대 100자(빈 값은 무시).
+ * 기간: range=all이면 "all"(from/to보다 우선), 아니면 from·to가 둘 다 isValidPeriodDate이고
+ * from <= to일 때만 { from, to }, 그 외는 무시(period 없음 → month 범위).
  */
 export async function parseListParams(
   searchParams: SearchParams,
@@ -210,5 +230,13 @@ export async function parseListParams(
   const q = first(searchParams.q)?.trim().slice(0, 100) || undefined;
   const sort: SortDirection = first(searchParams.sort) === "asc" ? "asc" : "desc";
 
-  return { month, type, categoryId, paymentMethod, q, sort };
+  const rawFrom = first(searchParams.from);
+  const rawTo = first(searchParams.to);
+  let period: ListPeriod | undefined;
+  if (first(searchParams.range) === "all") period = "all";
+  else if (isValidPeriodDate(rawFrom) && isValidPeriodDate(rawTo) && rawFrom <= rawTo) {
+    period = { from: rawFrom, to: rawTo };
+  }
+
+  return { month, period, type, categoryId, paymentMethod, q, sort };
 }

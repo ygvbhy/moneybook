@@ -29,18 +29,36 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
     if (tx.type === "INCOME") income += tx.amount;
     else expense += tx.amount;
   }
+  // 필터 초기화는 month와 기간 파라미터를 유지한다
+  const resetParams = new URLSearchParams({ month: params.month });
+  if (params.period === "all") resetParams.set("range", "all");
+  else if (params.period) {
+    resetParams.set("from", params.period.from);
+    resetParams.set("to", params.period.to);
+  }
+  const resetQuery = resetParams.toString();
   const filtered = !!(params.type || params.categoryId || params.paymentMethod || params.q);
 
   return (
     <>
       <PageHeader title="거래 내역">
         <div className="flex items-center gap-2">
-          <MonthSwitcher month={params.month} basePath="/transactions" searchParams={sp} />
+          {params.period ? (
+            <p className="text-sm font-medium tabular-nums" aria-live="polite">
+              {params.period === "all"
+                ? "전체 기간"
+                : `${params.period.from.replaceAll("-", ".")} ~ ${params.period.to.replaceAll("-", ".")}`}
+            </p>
+          ) : (
+            <MonthSwitcher month={params.month} basePath="/transactions" searchParams={sp} />
+          )}
           <TransactionCsvMenu />
         </div>
       </PageHeader>
       <TransactionFilters
         categories={categories}
+        month={params.month}
+        period={params.period}
         type={params.type}
         categoryId={params.categoryId}
         paymentMethod={params.paymentMethod}
@@ -57,14 +75,22 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
           <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed text-sm text-muted-foreground">
             <p>조건에 맞는 거래가 없습니다</p>
             <Link
-              href={`/transactions?month=${params.month}`}
+              href={`/transactions?${resetQuery}`}
               className="font-medium text-foreground underline underline-offset-4"
             >
               필터 초기화
             </Link>
           </div>
         ) : (
-          <PageEmpty message="이 달에는 거래가 없습니다" />
+          <PageEmpty
+            message={
+              !params.period
+                ? "이 달에는 거래가 없습니다"
+                : params.period === "all"
+                  ? "거래가 없습니다"
+                  : "이 기간에는 거래가 없습니다"
+            }
+          />
         )
       ) : (
         <>
@@ -72,7 +98,7 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
             <TransactionTable transactions={transactions} />
           </div>
           <div className="md:hidden">
-            <TransactionCardList transactions={transactions} />
+            <TransactionCardList transactions={transactions} showYear={!!params.period} />
           </div>
         </>
       )}

@@ -52,7 +52,7 @@ export function MonthlyTrendChart({ data }: { data: MonthTotal[] }) {
         .viz-trend .viz-bar-income { fill: var(--viz-income); }
         .viz-trend .viz-bar-expense { fill: var(--viz-expense); }
       `}</style>
-      <div role="img" aria-label="최근 6개월 월별 수입·지출 막대 차트. 아래 표에 같은 수치가 있습니다.">
+      <div role="img" aria-label="월별 수입·지출 막대 차트. 아래 표에 같은 수치가 있습니다.">
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} barGap={2}>
             <CartesianGrid vertical={false} stroke="var(--viz-grid)" />

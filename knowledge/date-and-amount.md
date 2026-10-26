@@ -11,6 +11,8 @@
 | 유효 연도 1900~9998 | `parseYearMonth`, `isValidYearMonth` |
 | 존재하지 않는 날짜(2026-02-30) 거부 | `isValidDateString` |
 | 잘못된 `month` 파라미터 → 이번 달 | `normalizeMonthParam` |
+| 잘못된 `year` 파라미터 → 올해 | `normalizeYearParam` |
+| 거래 기간 검색 날짜는 유효 날짜 + 연도 1900~9998 | `isValidPeriodDate` |
 | 캘린더는 월요일 시작 6주(42칸) | `buildMonthGrid` |
 | 날짜 라벨 `"10월 21일 (수)"` | `formatDateLabel` |
 

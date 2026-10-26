@@ -61,8 +61,15 @@ export async function exportTransactionsCsv(
     if (scope === "filtered") {
       const listParams = await svc.parseListParams(params ?? {}, today);
       const dtos = await svc.listTransactions(listParams);
+      const { period } = listParams;
+      const filename =
+        period === "all"
+          ? `moneybook-all-filtered-${today}.csv`
+          : period
+            ? `moneybook-${period.from}_${period.to}.csv`
+            : `moneybook-${listParams.month}.csv`;
       return {
-        filename: `moneybook-${listParams.month}.csv`,
+        filename,
         csv: formatTransactionsCsv(dtos),
         count: dtos.length,
       };

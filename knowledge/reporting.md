@@ -25,6 +25,15 @@
 
 필터·검색·정렬과 합계 규칙은 [transaction.md](transaction.md).
 
+## 연간 요약 (`/reports`, `server/reports.ts`)
+
+- `?year=YYYY` (`normalizeYearParam`: 1900~9998 정수가 아니면 서울 기준 올해). 기간은 `[YYYY-01-01, (YYYY+1)-01-01)`.
+- 월별: `getMonthlyTrend("YYYY-12", 12)` 재사용 → 1~12월, 거래 없는 달·미래 달은 0. 연 총수입·총지출·순수입은 이 12개월 합(추가 쿼리 없음). 순수입 표기는 순현금흐름과 같음(양수 `+` 파랑, 음수 `-` 빨강).
+- 구성: 요약 3칸 → 월별 추이 막대 차트(`MonthlyTrendChart`) → 월별 표(월·수입·지출·순수입 + 합계 행) → 카테고리별 지출·수입.
+- 카테고리별 합계 `getYearCategoryTotals`: `groupBy(["categoryId","type"])` 1회, 유형별로 금액 내림차순(동률 `categoryId`), 보관 카테고리 포함 `(보관됨)`. 행마다 금액·비중(소수 1자리)·진행바.
+- 링크: 월 → `/transactions?month=YYYY-MM`, 카테고리 → `/transactions?from=YYYY-01-01&to=YYYY-12-31&type=<T>&category=<id>` (올해가 아니면 `month=YYYY-12` 추가 → 월별로 돌아가면 그 해 12월).
+- 연 거래가 0건이면 요약 3칸(0)과 "이 해에는 거래가 없습니다"만 표시.
+
 ## 순수 집계 함수 (`src/lib/aggregate.ts`)
 
 `summarize`, `dailyTotals`, `categoryTotals`, `monthlyTotals` — DB 쿼리와 같은 규칙의 순수 버전 (단위 테스트 대상). 월별 추이는 `getMonthlyTrend`가 `groupBy(["occurredOn","type"])` 한 번으로 읽어 `monthlyTotals`로 버킷팅한다(월 단위 raw SQL 없음).

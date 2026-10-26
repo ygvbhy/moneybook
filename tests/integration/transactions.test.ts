@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
+import { todayInSeoul } from "@/lib/date";
 import {
   createTransaction,
   deleteTransaction,
@@ -381,6 +382,38 @@ describe("거래처 제안", () => {
   });
 });
 
+describe("기간 조회", () => {
+  beforeEach(async () => {
+    await create({ occurredOn: "2026-09-14", amount: 1_000, merchant: "커피집" });
+    await create({ occurredOn: "2026-09-15", amount: 2_000, merchant: "커피집" });
+    await create({ occurredOn: "2026-10-05", amount: 3_000, merchant: "서점" });
+    await create({ occurredOn: "2026-10-06", amount: 4_000, merchant: "커피집" });
+    await createTransaction(
+      txInput({ type: "INCOME", categoryId: salary, amount: 50_000, occurredOn: "2025-01-10" }),
+    );
+  });
+  it("기간 조회는 양끝 날짜를 포함하고 전날·다음 날은 제외한다", async () => {
+    const list = await listTransactions({
+      month: "2026-10",
+      period: { from: "2026-09-15", to: "2026-10-05" },
+      sort: "asc",
+    });
+    expect(list.map((t) => t.occurredOn)).toEqual(["2026-09-15", "2026-10-05"]);
+  });
+  it("전체 기간 조회는 여러 달 거래를 유형·검색 필터와 함께 조회한다", async () => {
+    const base = { month: "2026-10", period: "all" as const, sort: "asc" as const };
+    expect((await listTransactions(base)).length).toBe(5);
+    const incomes = await listTransactions({ ...base, type: "INCOME" });
+    expect(incomes.map((t) => t.occurredOn)).toEqual(["2025-01-10"]);
+    const coffee = await listTransactions({ ...base, type: "EXPENSE", q: "커피" });
+    expect(coffee.map((t) => t.occurredOn)).toEqual(["2026-09-14", "2026-09-15", "2026-10-06"]);
+  });
+  it("period가 없으면 month 범위만 조회한다", async () => {
+    const list = await listTransactions({ month: "2026-10", sort: "asc" });
+    expect(list.map((t) => t.occurredOn)).toEqual(["2026-10-05", "2026-10-06"]);
+  });
+});
+
 describe("URL 파라미터 정규화", () => {
   const today = "2026-10-21";
   it("기본값", async () => {
@@ -427,6 +460,53 @@ describe("URL 파라미터 정규화", () => {
     );
     expect(await exported("CASH")).toBe(2);
     expect(await exported("none")).toBe(1);
+  });
+  it("기간: range=all은 from/to보다 우선, 유효한 from/to는 period", async () => {
+    expect(
+      (await parseListParams({ range: "all", from: "2026-01-01", to: "2026-02-01" }, today)).period,
+    ).toBe("all");
+    expect((await parseListParams({ from: "2026-01-01", to: "2026-10-26" }, today)).period).toEqual({
+      from: "2026-01-01",
+      to: "2026-10-26",
+    });
+    expect((await parseListParams({ from: "2026-10-05", to: "2026-10-05" }, today)).period).toEqual({
+      from: "2026-10-05",
+      to: "2026-10-05",
+    });
+  });
+  it("기간: from>to, 한쪽만, 무효·1900 미만 값은 무시", async () => {
+    const period = async (sp: Record<string, string>) => (await parseListParams(sp, today)).period;
+    expect(await period({ from: "2026-10-05", to: "2026-10-04" })).toBeUndefined();
+    expect(await period({ from: "2026-10-05" })).toBeUndefined();
+    expect(await period({ to: "2026-10-05" })).toBeUndefined();
+    expect(await period({ from: "abc", to: "2026-10-05" })).toBeUndefined();
+    expect(await period({ from: "2026-02-30", to: "2026-10-05" })).toBeUndefined();
+    expect(await period({ from: "0002-10-01", to: "2026-10-05" })).toBeUndefined();
+    expect(await period({ from: "1899-12-31", to: "2026-10-05" })).toBeUndefined();
+    expect(await period({ range: "yes" })).toBeUndefined();
+  });
+  it("CSV 현재 목록 파일명: 기간·전체 기간·월", async () => {
+    await create({ occurredOn: "2026-09-14", merchant: "커피집" });
+    await create({ occurredOn: "2026-09-15", merchant: "커피집" });
+    await create({ occurredOn: "2026-10-05", merchant: "커피집" });
+    await create({ occurredOn: "2026-10-06", merchant: "커피집" });
+    await create({ occurredOn: "2026-07-01", merchant: "서점" });
+    const exported = async (params: Record<string, string>) => {
+      const r = await exportTransactionsCsv({ scope: "filtered", params });
+      if (!r.ok) throw new Error(r.error);
+      return r.data!;
+    };
+    const range = await exported({ from: "2026-09-15", to: "2026-10-05" });
+    expect(range.filename).toBe("moneybook-2026-09-15_2026-10-05.csv");
+    expect(range.count).toBe(2);
+
+    const all = await exported({ range: "all", q: "커피" });
+    expect(all.filename).toBe(`moneybook-all-filtered-${todayInSeoul()}.csv`);
+    expect(all.count).toBe(4);
+
+    const month = await exported({ month: "2026-10" });
+    expect(month.filename).toBe("moneybook-2026-10.csv");
+    expect(month.count).toBe(2);
   });
   it("유효한 값은 유지, 배열은 첫 값", async () => {
     const p = await parseListParams(

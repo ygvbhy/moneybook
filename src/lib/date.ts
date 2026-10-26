@@ -60,6 +60,20 @@ export function normalizeMonthParam(
   return isValidYearMonth(param) ? param : today.slice(0, 7);
 }
 
+/** 거래 기간 검색용 날짜: 유효한 "YYYY-MM-DD"이고 연도가 1900~9998 */
+export function isValidPeriodDate(value: unknown): value is string {
+  return isValidDateString(value) && isValidYearMonth(monthOf(value));
+}
+
+/** "YYYY"가 유효(1900~9998)하면 그 연도, 아니면 today의 연도 */
+export function normalizeYearParam(param: string | null | undefined, today: string): number {
+  if (param && /^\d{4}$/.test(param)) {
+    const year = Number(param);
+    if (year >= MIN_YEAR && year <= MAX_YEAR) return year;
+  }
+  return Number(today.slice(0, 4));
+}
+
 export function shiftMonth(ym: string, delta: number): string {
   const p = parseYearMonth(ym);
   if (!p) throw new Error(`Invalid year-month: ${ym}`);

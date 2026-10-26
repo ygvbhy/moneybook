@@ -90,8 +90,9 @@ startTransition(async () => {
 | --- | --- | --- |
 | `/` `/budgets` | `month=YYYY-MM` | `normalizeMonthParam` → 무효면 서울 기준 이번 달 |
 | `/calendar` | `month`, `date=YYYY-MM-DD` | `date`가 무효이거나 `month` 밖이면 선택 없음 |
-| `/transactions` | `month`, `type=INCOME\|EXPENSE`, `category=<id>`, `payment=<PaymentMethod>\|none`, `q`, `sort=asc` | `parseListParams`: 알 수 없는 type·payment, 없는 category 무시, `q`는 trim 후 100자, `sort`는 `asc` 외 `desc` |
+| `/transactions` | `month`, `range=all`, `from=YYYY-MM-DD`, `to=YYYY-MM-DD`, `type=INCOME\|EXPENSE`, `category=<id>`, `payment=<PaymentMethod>\|none`, `q`, `sort=asc` | `parseListParams`: `range=all`이 `from`/`to`보다 우선, `from`·`to`는 둘 다 `isValidPeriodDate`이고 `from <= to`일 때만 기간(아니면 월별), 알 수 없는 type·payment, 없는 category 무시, `q`는 trim 후 100자, `sort`는 `asc` 외 `desc` |
 | `/recurring` | 없음 | |
+| `/reports` | `year=YYYY` | `normalizeYearParam` → 1900~9998 정수가 아니면 서울 기준 올해 |
 
 - `MonthSwitcher`는 월 이동 시 `month`, `date`를 제외한 나머지 파라미터를 유지한다.
 - 필터 변경은 `router.replace`, 날짜 선택은 `router.push(..., { scroll: false })`.

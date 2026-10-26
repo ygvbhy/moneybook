@@ -3,10 +3,12 @@ import {
   buildMonthGrid,
   fromDbDate,
   isValidDateString,
+  isValidPeriodDate,
   lastDayOfMonth,
   monthOf,
   monthRange,
   normalizeMonthParam,
+  normalizeYearParam,
   parseYearMonth,
   recentMonths,
   shiftMonth,
@@ -140,5 +142,32 @@ describe("date: 최근 N개월 목록", () => {
   });
   it("count 1이면 해당 월만", () => {
     expect(recentMonths("2026-10", 1)).toEqual(["2026-10"]);
+  });
+});
+
+describe("date: 기간 검색 날짜", () => {
+  it.each(["2026-10-26", "1900-01-01", "9998-12-31"])("%s -> 유효", (v) => {
+    expect(isValidPeriodDate(v)).toBe(true);
+  });
+  it.each(["1899-12-31", "0002-10-01", "2026-02-30", "", "9999-01-01", undefined, "2026-10"])(
+    "%s -> 무효",
+    (v) => {
+      expect(isValidPeriodDate(v)).toBe(false);
+    },
+  );
+});
+
+describe("date: year 파라미터", () => {
+  const today = "2026-10-21";
+  it.each([
+    ["2026", 2026],
+    ["2025", 2025],
+    ["1900", 1900],
+    ["9998", 9998],
+  ])("%s -> %i", (v, expected) => {
+    expect(normalizeYearParam(v, today)).toBe(expected);
+  });
+  it.each([undefined, null, "", "1899", "9999", "2026x", "26", " 2026"])("%s -> 올해", (v) => {
+    expect(normalizeYearParam(v as string | null | undefined, today)).toBe(2026);
   });
 });

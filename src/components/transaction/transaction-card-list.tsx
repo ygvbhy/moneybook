@@ -5,7 +5,13 @@ import { useTransactionDialog } from "@/components/transaction/transaction-dialo
 import { PAYMENT_METHOD_LABELS, TYPE_LABELS, formatDateLabel } from "@/lib/labels";
 import type { TransactionDto } from "@/server/transactions";
 
-export function TransactionCardList({ transactions }: { transactions: TransactionDto[] }) {
+export function TransactionCardList({
+  transactions,
+  showYear = false,
+}: {
+  transactions: TransactionDto[];
+  showYear?: boolean;
+}) {
   const { openEdit } = useTransactionDialog();
   // 입력 순서(정렬된 결과)를 유지하며 날짜별로 묶는다
   const groups: { date: string; items: TransactionDto[] }[] = [];
@@ -14,11 +20,14 @@ export function TransactionCardList({ transactions }: { transactions: Transactio
     if (last && last.date === tx.occurredOn) last.items.push(tx);
     else groups.push({ date: tx.occurredOn, items: [tx] });
   }
+  // 여러 해에 걸칠 수 있는 기간·전체 모드에서는 제목에 연도를 붙인다
+  const heading = (date: string) =>
+    showYear ? `${date.slice(0, 4)}년 ${formatDateLabel(date)}` : formatDateLabel(date);
   return (
     <div className="flex flex-col gap-5">
       {groups.map((g) => (
-        <section key={g.date} aria-label={formatDateLabel(g.date)}>
-          <h2 className="mb-2 text-sm font-medium text-muted-foreground">{formatDateLabel(g.date)}</h2>
+        <section key={g.date} aria-label={heading(g.date)}>
+          <h2 className="mb-2 text-sm font-medium text-muted-foreground">{heading(g.date)}</h2>
           <ul className="flex flex-col gap-2">
             {g.items.map((tx) => {
               const label = [tx.merchant, tx.item].filter(Boolean).join(" · ");
