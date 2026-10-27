@@ -4,12 +4,19 @@ import { todayInSeoul } from "@/lib/date";
 import { formatKRW } from "@/lib/money";
 import { listCategories } from "@/server/categories";
 import { materializeRecurring } from "@/server/recurring";
-import { listTransactions, parseListParams } from "@/server/transactions";
+import {
+  listTransactions,
+  parseListParams,
+  summarizeTransactions,
+  TRANSACTION_PAGE_SIZE,
+} from "@/server/transactions";
+import { paginate } from "@/lib/pagination";
 import { MonthSwitcher } from "@/components/month-switcher";
 import { PageEmpty, PageHeader } from "@/components/app-shell/page-header";
 import { TransactionCsvMenu } from "@/components/transaction/transaction-csv-menu";
 import { TransactionFilters } from "@/components/transaction/transaction-filters";
 import { TransactionList } from "@/components/transaction/transaction-list";
+import { TransactionPagination } from "@/components/transaction/transaction-pagination";
 
 export default async function TransactionsPage({ searchParams }: PageProps<"/transactions">) {
   await requireSession();
@@ -17,17 +24,14 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
   await materializeRecurring(today);
   const sp = await searchParams;
   const params = await parseListParams(sp, today);
-  const [transactions, categories] = await Promise.all([
-    listTransactions(params),
+  const [summary, categories] = await Promise.all([
+    summarizeTransactions(params),
     listCategories(),
   ]);
+  const { page, pageCount, skip } = paginate(sp.page, summary.count, TRANSACTION_PAGE_SIZE);
+  const transactions =
+    summary.count > 0 ? await listTransactions(params, { skip, take: TRANSACTION_PAGE_SIZE }) : [];
 
-  let income = 0;
-  let expense = 0;
-  for (const tx of transactions) {
-    if (tx.type === "INCOME") income += tx.amount;
-    else expense += tx.amount;
-  }
   // 필터 초기화는 month와 기간 파라미터를 유지한다
   const resetParams = new URLSearchParams({ month: params.month });
   if (params.period === "all") resetParams.set("range", "all");
@@ -65,11 +69,11 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
         sort={params.sort}
       />
       <p className="mb-4 text-sm tabular-nums" aria-label="필터 결과 합계">
-        <span className="text-income">수입 +{formatKRW(income)}원</span>
+        <span className="text-income">수입 +{formatKRW(summary.income)}원</span>
         {" · "}
-        <span className="text-expense">지출 -{formatKRW(expense)}원</span>
+        <span className="text-expense">지출 -{formatKRW(summary.expense)}원</span>
       </p>
-      {transactions.length === 0 ? (
+      {summary.count === 0 ? (
         filtered ? (
           <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed text-sm text-muted-foreground">
             <p>조건에 맞는 거래가 없습니다</p>
@@ -92,7 +96,10 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
           />
         )
       ) : (
-        <TransactionList transactions={transactions} categories={categories} showYear={!!params.period} />
+        <>
+          <TransactionList transactions={transactions} categories={categories} showYear={!!params.period} />
+          <TransactionPagination page={page} pageCount={pageCount} searchParams={sp} />
+        </>
       )}
     </>
   );

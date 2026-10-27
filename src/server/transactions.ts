@@ -184,7 +184,10 @@ export type ListParams = {
   sort: SortDirection;
 };
 
-export async function listTransactions(params: ListParams): Promise<TransactionDto[]> {
+/** 목록 페이지 크기. 페이지 번호 방식(`?page=N`)에서 한 페이지에 보여줄 거래 수 */
+export const TRANSACTION_PAGE_SIZE = 100;
+
+function listWhere(params: ListParams): Prisma.TransactionWhereInput {
   const q = params.q?.trim();
   let occurredOn: Prisma.TransactionWhereInput["occurredOn"];
   if (params.period === "all") {
@@ -195,28 +198,58 @@ export async function listTransactions(params: ListParams): Promise<TransactionD
     const { start, endExclusive } = monthRange(params.month);
     occurredOn = { gte: toDbDate(start), lt: toDbDate(endExclusive) };
   }
+  return {
+    ...(occurredOn ? { occurredOn } : {}),
+    ...(params.type ? { type: params.type } : {}),
+    ...(params.categoryId ? { categoryId: params.categoryId } : {}),
+    ...(params.paymentMethod
+      ? { paymentMethod: params.paymentMethod === "none" ? null : params.paymentMethod }
+      : {}),
+    ...(q
+      ? {
+          OR: [
+            { merchant: { contains: q, mode: "insensitive" } },
+            { item: { contains: q, mode: "insensitive" } },
+            { memo: { contains: q, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+}
+
+/** 필터 결과 목록. page가 없으면 전부, 있으면 skip/take 구간. 같은 시각이면 id로 안정 정렬 */
+export async function listTransactions(
+  params: ListParams,
+  page?: { skip: number; take: number },
+): Promise<TransactionDto[]> {
   const rows = await db.transaction.findMany({
-    where: {
-      ...(occurredOn ? { occurredOn } : {}),
-      ...(params.type ? { type: params.type } : {}),
-      ...(params.categoryId ? { categoryId: params.categoryId } : {}),
-      ...(params.paymentMethod
-        ? { paymentMethod: params.paymentMethod === "none" ? null : params.paymentMethod }
-        : {}),
-      ...(q
-        ? {
-            OR: [
-              { merchant: { contains: q, mode: "insensitive" } },
-              { item: { contains: q, mode: "insensitive" } },
-              { memo: { contains: q, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-    },
+    where: listWhere(params),
     include: withCategory,
-    orderBy: [{ occurredOn: params.sort }, { createdAt: params.sort }],
+    orderBy: [{ occurredOn: params.sort }, { createdAt: params.sort }, { id: params.sort }],
+    ...(page ? { skip: page.skip, take: page.take } : {}),
   });
   return rows.map(toTransactionDto);
+}
+
+/** 필터 결과 전체의 건수와 유형별 금액 합계 (페이지와 무관) */
+export async function summarizeTransactions(
+  params: ListParams,
+): Promise<{ count: number; income: number; expense: number }> {
+  const groups = await db.transaction.groupBy({
+    by: ["type"],
+    where: listWhere(params),
+    _sum: { amount: true },
+    _count: { _all: true },
+  });
+  let count = 0;
+  let income = 0;
+  let expense = 0;
+  for (const g of groups) {
+    count += g._count._all;
+    if (g.type === "INCOME") income = g._sum.amount ?? 0;
+    else expense = g._sum.amount ?? 0;
+  }
+  return { count, income, expense };
 }
 
 /** CSV 내보내기용 전체 거래. 오래된 순, 같은 시각이면 id로 안정 정렬 */

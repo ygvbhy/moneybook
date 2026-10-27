@@ -7,14 +7,14 @@ type Props = {
   month: string;
   /** 현재 경로 (예: "/transactions") */
   basePath: string;
-  /** 유지할 나머지 검색 파라미터. month, date는 무시된다 */
+  /** 유지할 나머지 검색 파라미터. month, date, page는 무시된다 */
   searchParams?: Record<string, string | string[] | undefined>;
 };
 
 function hrefFor(basePath: string, month: string, sp: Props["searchParams"]) {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(sp ?? {})) {
-    if (k === "month" || k === "date" || v === undefined) continue;
+    if (k === "month" || k === "date" || k === "page" || v === undefined) continue;
     for (const item of Array.isArray(v) ? v : [v]) qs.append(k, item);
   }
   qs.set("month", month);

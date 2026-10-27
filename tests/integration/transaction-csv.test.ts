@@ -107,6 +107,17 @@ describe("CSV 내보내기", () => {
     expect(dataRows(search.csv).map((r) => r[2])).toEqual(["1000", "2000"]);
   });
 
+  it("filtered: params에 page가 있어도 필터 결과 전체를 내보낸다", async () => {
+    await create({ occurredOn: "2026-10-05", amount: 1_000 });
+    await create({ occurredOn: "2026-10-06", amount: 2_000 });
+    await create({ occurredOn: "2026-10-07", amount: 3_000 });
+
+    const withoutPage = await exportOk({ scope: "filtered", params: { month: "2026-10" } });
+    const withPage = await exportOk({ scope: "filtered", params: { month: "2026-10", page: "2" } });
+    expect(withoutPage.count).toBe(3);
+    expect(withPage.count).toBe(withoutPage.count);
+  });
+
   it("all: 여러 달을 날짜 오름차순으로 담고 filename 형식이 맞다", async () => {
     await create({ occurredOn: "2026-10-05", amount: 3 });
     await create({ occurredOn: "2025-12-31", amount: 1 });

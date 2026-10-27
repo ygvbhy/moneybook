@@ -76,6 +76,7 @@ export function TransactionFilters({
 
   function update(changes: Record<string, string | undefined>) {
     const params = new URLSearchParams(window.location.search); // 디바운스 중 바뀐 필터를 지우지 않도록 실행 시점의 URL 기준
+    params.delete("page"); // 필터가 바뀌면 1페이지로
     for (const [k, v] of Object.entries(changes)) {
       if (v === undefined || v === "") params.delete(k);
       else params.set(k, v);

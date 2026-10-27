@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { todayInSeoul } from "@/lib/date";
+import { toDbDate, todayInSeoul } from "@/lib/date";
 import {
   createTransaction,
   deleteTransaction,
@@ -20,7 +20,12 @@ import {
 } from "@/server/dashboard";
 import { createRecurring, materializeRecurring } from "@/server/recurring";
 import { getDailyTotals, listTransactionsByDate } from "@/server/calendar";
-import { getTransaction, listTransactions, parseListParams } from "@/server/transactions";
+import {
+  getTransaction,
+  listTransactions,
+  parseListParams,
+  summarizeTransactions,
+} from "@/server/transactions";
 import { categoryId, loginAsTest, resetDb, txInput } from "../setup/db";
 
 const MSG_GONE = "이미 삭제되었거나 존재하지 않는 거래입니다";
@@ -722,6 +727,79 @@ describe("일괄 카테고리 변경", () => {
     expect(await updateTransactionsCategory({ ids, categoryId: food })).toEqual({
       ok: false,
       error: "한 번에 최대 5,000건까지 처리할 수 있습니다",
+    });
+  });
+});
+
+describe("목록 페이지 조회와 합계", () => {
+  async function seedTies() {
+    const createdAt = new Date("2026-10-10T03:00:00.000Z");
+    await db.transaction.createMany({
+      data: Array.from({ length: 7 }, (_, i) => ({
+        type: "EXPENSE" as const,
+        amount: 1_000 + i,
+        occurredOn: toDbDate("2026-10-10"),
+        categoryId: food,
+        createdAt,
+      })),
+    });
+  }
+
+  it.each(["asc", "desc"] as const)(
+    "동률 행도 페이지를 이어붙이면 전체 목록과 같고 id %s 순이다",
+    async (sort) => {
+      await seedTies();
+      const params = { month: "2026-10", sort };
+      const all = await listTransactions(params);
+      expect(all).toHaveLength(7);
+
+      const joined = [];
+      for (let skip = 0; skip < 8; skip += 2) {
+        joined.push(...(await listTransactions(params, { skip, take: 2 })));
+      }
+      expect(joined.map((t) => t.id)).toEqual(all.map((t) => t.id));
+      expect(new Set(joined.map((t) => t.id)).size).toBe(7);
+
+      const byId = await db.transaction.findMany({
+        orderBy: { id: sort },
+        select: { id: true },
+      });
+      expect(all.map((t) => t.id)).toEqual(byId.map((r) => r.id));
+    },
+  );
+
+  it("summarizeTransactions는 같은 필터의 목록 건수·금액합과 같다", async () => {
+    await create({ occurredOn: "2026-09-14", amount: 1_000, merchant: "커피집" });
+    await create({ occurredOn: "2026-10-05", amount: 3_000, merchant: "서점" });
+    await create({ occurredOn: "2026-10-06", amount: 4_000, merchant: "커피집" });
+    await createTransaction(
+      txInput({ type: "INCOME", categoryId: salary, amount: 50_000, occurredOn: "2026-10-07" }),
+    );
+    const base = { month: "2026-10", sort: "asc" as const };
+    const cases = [
+      base,
+      { ...base, type: "EXPENSE" as const },
+      { ...base, type: "INCOME" as const },
+      { ...base, period: "all" as const, q: "커피" },
+      { ...base, period: { from: "2026-09-01", to: "2026-10-05" } },
+    ];
+    for (const params of cases) {
+      const list = await listTransactions(params);
+      const sum = (type: "INCOME" | "EXPENSE") =>
+        list.filter((t) => t.type === type).reduce((s, t) => s + t.amount, 0);
+      expect(await summarizeTransactions(params)).toEqual({
+        count: list.length,
+        income: sum("INCOME"),
+        expense: sum("EXPENSE"),
+      });
+    }
+  });
+
+  it("summarizeTransactions는 0건이면 모두 0이다", async () => {
+    expect(await summarizeTransactions({ month: "2026-10", sort: "desc" })).toEqual({
+      count: 0,
+      income: 0,
+      expense: 0,
     });
   });
 });
