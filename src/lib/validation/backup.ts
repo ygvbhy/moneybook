@@ -25,11 +25,13 @@ const backupCategorySchema = z.object({
   createdAt: timestampSchema,
 });
 
-const backupTransactionSchema = transactionSchema.extend({
+export const backupTransactionSchema = transactionSchema.extend({
   id: idSchema,
   createdAt: timestampSchema,
   recurringExpenseId: idSchema.nullable(),
 });
+
+export type BackupTransaction = z.infer<typeof backupTransactionSchema>;
 
 const backupRecurringSchema = recurringSchema.extend({
   id: idSchema,

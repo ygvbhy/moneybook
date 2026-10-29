@@ -39,3 +39,4 @@ export const CATEGORY_DUPLICATE = "같은 이름의 카테고리가 있습니다
 export const CATEGORY_MISSING = "카테고리를 찾을 수 없습니다";
 export const CATEGORY_TYPE_MISMATCH = "거래 유형과 카테고리 유형이 일치하지 않습니다";
 export const CATEGORY_ARCHIVED = "보관된 카테고리는 사용할 수 없습니다";
+export const UNDO_CATEGORY_MISSING = "카테고리가 없어 되돌릴 수 없습니다";

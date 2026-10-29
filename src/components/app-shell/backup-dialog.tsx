@@ -90,6 +90,7 @@ function BackupBody({ onDone }: { onDone: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<string[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [phase, setPhase] = useState<"backup" | "restore" | null>(null);
 
   function download(filename: string, json: string) {
     const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
@@ -99,7 +100,8 @@ function BackupBody({ onDone }: { onDone: () => void }) {
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
+    // 일부 브라우저는 즉시 해제하면 다운로드가 깨지고, 복원 전 백업은 다시 받을 수 없어 지연 해제한다
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
   function handleExport() {
@@ -170,6 +172,28 @@ function BackupBody({ onDone }: { onDone: () => void }) {
 
   function onRestore() {
     startRestore(async () => {
+      setPhase("backup");
+      let backup: Awaited<ReturnType<typeof exportBackup>> | null = null;
+      try {
+        backup = await exportBackup();
+      } catch {
+        backup = null;
+      }
+      if (!backup || !backup.ok || !backup.data) {
+        setConfirmOpen(false);
+        setError("현재 데이터 백업에 실패해 복원하지 않았습니다");
+        setRowErrors([]);
+        setPhase(null);
+        return;
+      }
+      const { filename: exportedName, json } = backup.data;
+      const filename = exportedName.replace(/\.json$/, "-before-restore.json");
+      download(filename, json);
+      if (new Blob([json]).size > MAX_BACKUP_BYTES) {
+        toast.warning("파일이 3.5MB를 넘어 앱에서 복원할 수 없습니다");
+      }
+
+      setPhase("restore");
       try {
         const result = await restoreBackup(parsed);
         if (!result.ok) {
@@ -178,7 +202,7 @@ function BackupBody({ onDone }: { onDone: () => void }) {
           setRowErrors(result.fieldErrors?.rows ?? []);
           return;
         }
-        toast.success("복원했습니다");
+        toast.success(`복원했습니다. 복원 전 데이터는 ${filename}으로 내려받았습니다`);
         setConfirmOpen(false);
         onDone();
         router.refresh();
@@ -186,6 +210,8 @@ function BackupBody({ onDone }: { onDone: () => void }) {
         setConfirmOpen(false);
         setError("복원 요청에 실패했습니다. 파일 크기를 확인하세요");
         setRowErrors([]);
+      } finally {
+        setPhase(null);
       }
     });
   }
@@ -268,8 +294,8 @@ function BackupBody({ onDone }: { onDone: () => void }) {
           <AlertDialogHeader>
             <AlertDialogTitle>현재 데이터를 모두 바꿀까요?</AlertDialogTitle>
             <AlertDialogDescription>
-              지금 저장된 모든 데이터가 삭제되고 백업 파일의 내용으로 바뀝니다. 되돌릴 수
-              없습니다.
+              지금 저장된 모든 데이터가 삭제되고 백업 파일의 내용으로 바뀝니다. 복원 전에 현재
+              데이터를 백업 파일로 먼저 내려받습니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -282,7 +308,7 @@ function BackupBody({ onDone }: { onDone: () => void }) {
                 onRestore();
               }}
             >
-              {restoring ? "복원 중..." : "복원"}
+              {phase === "backup" ? "백업 중..." : restoring ? "복원 중..." : "복원"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

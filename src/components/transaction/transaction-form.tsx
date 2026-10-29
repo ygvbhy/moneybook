@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import type { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -45,6 +46,7 @@ import {
   deleteTransaction,
   updateTransaction,
 } from "@/server/actions/transactions";
+import { toastDeleted } from "@/components/transaction/undo-delete";
 import type { CategoryDto } from "@/server/categories";
 import type { TransactionDto } from "@/server/transactions";
 
@@ -93,6 +95,7 @@ export function TransactionForm({
   merchantSuggestions,
   onDone,
 }: TransactionFormProps) {
+  const router = useRouter();
   const isEdit = !!tx;
   const src = tx ?? duplicateFrom;
   const [pending, startTransition] = useTransition();
@@ -207,7 +210,11 @@ export function TransactionForm({
       const result = await deleteTransaction(tx.id);
       setConfirmOpen(false);
       if (!result.ok) return applyFailure(result);
-      toast.success("삭제했습니다");
+      toastDeleted({
+        message: "삭제했습니다",
+        deleted: result.data?.deleted,
+        refresh: () => router.refresh(),
+      });
       onDone();
     });
   }

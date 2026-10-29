@@ -42,6 +42,7 @@ export async function updateX(id: string, input: unknown): Promise<ActionResult>
 | import | `if (result.ok)`일 때만 |
 | 읽기 전용 (export) | 호출하지 않는다 (값만 반환) |
 | restore (백업 복원) | `if (result.ok)`일 때만 (실패하면 데이터가 그대로) |
+| undo (삭제 되돌리기 `undoDeleteTransactions`) | `if (result.ok)`일 때만 (실패하면 아무것도 넣지 않음) |
 
 ### 체크리스트 (새 action)
 
@@ -58,8 +59,10 @@ export async function updateX(id: string, input: unknown): Promise<ActionResult>
 | `auth.ts` | `login(prevState, FormData \| {username,password})` | `loginSchema` | 성공 시 `redirect("/")` (세션 불필요한 유일한 action) |
 | `auth.ts` | `logout()` | — | `redirect("/login")` |
 | `transactions.ts` | `createTransaction(input)` | `transactionSchema` | `{ id }` |
-| | `updateTransaction(id, input)` / `deleteTransaction(id)` | | — |
-| | `deleteTransactions(ids)` | id 배열 (중복 제거 후 1 ~ 5,000건) | `{ count }`. 이미 없는 id는 무시, 전부 없으면 `TX_NOT_FOUND` |
+| | `updateTransaction(id, input)` | | — |
+| | `deleteTransaction(id)` | | `{ deleted }` (지운 거래 1건, `BackupTransaction[]`) |
+| | `deleteTransactions(ids)` | id 배열 (중복 제거 후 1 ~ 5,000건) | `{ count, deleted? }`. 이미 없는 id는 무시, 전부 없으면 `TX_NOT_FOUND`. `deleted`의 JSON이 3MB(`MAX_UNDO_BYTES`)를 넘으면 뺀다 |
+| | `undoDeleteTransactions(rows)` | 삭제 action이 돌려준 `deleted` (`backupTransactionSchema` 배열, 1 ~ 5,000건, id 중복 없음) | `{ count }` (실제 넣은 건수, 이미 있는 id는 건너뜀). 규칙은 [knowledge/transaction.md](../knowledge/transaction.md) "생성·수정·삭제" |
 | | `updateTransactionsCategory(input)` | `{ ids, categoryId }` (ids 규칙은 위와 같음) | `{ count }`. 규칙은 [knowledge/transaction.md](../knowledge/transaction.md) "일괄 편집" |
 | | `exportTransactionsCsv(input)` | `{ scope: "filtered", params? }` (`/transactions` search params) \| `{ scope: "all" }` | `{ filename, csv, count }` (읽기 전용) |
 | | `importTransactionsCsv(text)` | CSV 문자열 (≤ 800KB) | `{ count }`. 행 오류는 `fieldErrors.rows`에 `"N행: 메시지"` 목록 |

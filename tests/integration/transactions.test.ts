@@ -6,6 +6,7 @@ import {
   deleteTransaction,
   deleteTransactions,
   exportTransactionsCsv,
+  undoDeleteTransactions,
   updateTransaction,
   updateTransactionsCategory,
 } from "@/server/actions/transactions";
@@ -18,11 +19,12 @@ import {
   getRecentCategoryIds,
   getRecentTransactionPresets,
 } from "@/server/dashboard";
-import { createRecurring, materializeRecurring } from "@/server/recurring";
+import { createRecurring, deleteRecurring, materializeRecurring } from "@/server/recurring";
 import { getDailyTotals, listTransactionsByDate } from "@/server/calendar";
 import {
   getTransaction,
   listTransactions,
+  toBackupTransaction,
   parseListParams,
   summarizeTransactions,
 } from "@/server/transactions";
@@ -64,7 +66,7 @@ describe("거래와 집계", () => {
     expect(upd).toEqual({ ok: true });
     expect((await getMonthSummary("2026-10")).expense).toBe(20_000);
 
-    expect(await deleteTransaction(id)).toEqual({ ok: true });
+    expect((await deleteTransaction(id)).ok).toBe(true);
     expect(await getMonthSummary("2026-10")).toMatchObject({ expense: 0 });
   });
 
@@ -184,7 +186,7 @@ describe("카테고리 규칙", () => {
 describe("삭제 경쟁", () => {
   it("이미 삭제된 거래를 수정·삭제하면 ok:false와 안내 메시지", async () => {
     const id = await create();
-    expect(await deleteTransaction(id)).toEqual({ ok: true });
+    expect((await deleteTransaction(id)).ok).toBe(true);
     expect(await updateTransaction(id, txInput({ categoryId: food }))).toEqual({
       ok: false,
       error: MSG_GONE,
@@ -577,7 +579,7 @@ describe("일괄 삭제", () => {
     const a = await create();
     const b = await create();
     const c = await create();
-    expect(await deleteTransactions([a, b])).toEqual({ ok: true, data: { count: 2 } });
+    expect(await deleteTransactions([a, b])).toMatchObject({ ok: true, data: { count: 2 } });
     const left = await db.transaction.findMany({ select: { id: true } });
     expect(left).toEqual([{ id: c }]);
   });
@@ -586,7 +588,7 @@ describe("일괄 삭제", () => {
     const a = await create();
     const b = await create();
     await deleteTransaction(a);
-    expect(await deleteTransactions([a, b])).toEqual({ ok: true, data: { count: 1 } });
+    expect(await deleteTransactions([a, b])).toMatchObject({ ok: true, data: { count: 1 } });
     expect(await db.transaction.count()).toBe(0);
   });
 
@@ -605,7 +607,7 @@ describe("일괄 삭제", () => {
 
   it("중복 id는 한 번만 처리한다", async () => {
     const a = await create();
-    expect(await deleteTransactions([a, a, a])).toEqual({ ok: true, data: { count: 1 } });
+    expect(await deleteTransactions([a, a, a])).toMatchObject({ ok: true, data: { count: 1 } });
   });
 
   it("5,001개 고유 id는 상한 오류이고 DB는 그대로다", async () => {
@@ -621,7 +623,7 @@ describe("일괄 삭제", () => {
   it("중복을 제거하면 5,000건 이하인 요청은 상한에 걸리지 않는다", async () => {
     const a = await create();
     const ids = Array.from({ length: 5001 }, () => a);
-    expect(await deleteTransactions(ids)).toEqual({ ok: true, data: { count: 1 } });
+    expect(await deleteTransactions(ids)).toMatchObject({ ok: true, data: { count: 1 } });
   });
 });
 
@@ -802,4 +804,202 @@ describe("목록 페이지 조회와 합계", () => {
       expense: 0,
     });
   });
+});
+
+describe("삭제 되돌리기", () => {
+  async function rowOf(id: string) {
+    return db.transaction.findUniqueOrThrow({ where: { id } });
+  }
+
+  // updatedAt은 백업 형식에 없어 다시 넣을 때 새로 찍힌다 → 비교에서 제외
+  async function rowsOf(ids: string[]) {
+    const rows = await db.transaction.findMany({
+      where: { id: { in: ids } },
+      orderBy: { id: "asc" },
+    });
+    return rows.map((r) => ({ ...r, updatedAt: undefined }));
+  }
+
+  function unwrap<T>(r: { ok: true; data?: T } | { ok: false; error: string }): T {
+    if (!r.ok) throw new Error(r.error);
+    return r.data as T;
+  }
+
+  async function createRecurringFood() {
+    const r = await createRecurring(
+      {
+        categoryId: food,
+        item: "월세",
+        amount: 500_000,
+        dayOfMonth: 25,
+        merchant: null,
+        memo: null,
+        paymentMethod: null,
+      } as Parameters<typeof createRecurring>[0],
+      "2026-10-21",
+    );
+    return r.id;
+  }
+
+  it("단건 삭제는 삭제 전 행과 같은 레코드 1건을 돌려준다", async () => {
+    const id = await create({ merchant: "마트", item: "장보기", memo: "메모", paymentMethod: "CASH" });
+    const before = toBackupTransaction(await rowOf(id));
+    const r = await deleteTransaction(id);
+    expect(r).toEqual({ ok: true, data: { deleted: [before] } });
+    expect(before).toMatchObject({ id, merchant: "마트", paymentMethod: "CASH", recurringExpenseId: null });
+    expect(Object.keys(before)).toHaveLength(12);
+  });
+
+  it("일괄 삭제 deleted는 실제로 지운 것만이고 count와 같다", async () => {
+    const a = await create();
+    const b = await create();
+    await deleteTransaction(a);
+    const before = toBackupTransaction(await rowOf(b));
+    const r = await deleteTransactions([a, b, "nope"]);
+    expect(r).toEqual({ ok: true, data: { count: 1, deleted: [before] } });
+    expect(unwrap(r).count).toBe(unwrap(r).deleted!.length);
+  });
+
+  it("삭제 후 되돌리면 DB 행이 원본과 같다 (id·createdAt·recurringExpenseId 포함)", async () => {
+    const recurringId = await createRecurringFood();
+    await materializeRecurring("2026-10-25");
+    const fromRecurring = await db.transaction.findFirstOrThrow({
+      where: { recurringExpenseId: recurringId },
+    });
+    const a = await create({ merchant: "마트", memo: "메모", paymentMethod: "CASH" });
+    const b = await createTransaction(
+      txInput({ type: "INCOME", categoryId: salary, amount: 77_000, occurredOn: "2026-09-30" }),
+    );
+    const ids = [fromRecurring.id, a, unwrap(b).id];
+    const originals = await rowsOf(ids);
+
+    const del = await deleteTransactions(ids);
+    expect(del.ok).toBe(true);
+    expect(await db.transaction.count()).toBe(0);
+    const undo = await undoDeleteTransactions(unwrap(del).deleted!);
+    expect(undo).toEqual({ ok: true, data: { count: 3 } });
+    expect(await rowsOf(ids)).toEqual(originals);
+  });
+
+  it("보관된 카테고리의 거래도 되돌릴 수 있다", async () => {
+    const id = await create();
+    const del = await deleteTransaction(id);
+    await archiveCategory(food);
+    expect(await undoDeleteTransactions(unwrap(del).deleted!)).toEqual({ ok: true, data: { count: 1 } });
+    expect((await rowOf(id)).categoryId).toBe(food);
+  });
+
+  it("그 사이 고정지출이 삭제됐으면 recurringExpenseId는 null로 들어간다", async () => {
+    const recurringId = await createRecurringFood();
+    await materializeRecurring("2026-10-25");
+    const tx = await db.transaction.findFirstOrThrow({ where: { recurringExpenseId: recurringId } });
+    const del = await deleteTransaction(tx.id);
+    expect(unwrap(del).deleted![0].recurringExpenseId).toBe(recurringId);
+    await deleteRecurring(recurringId);
+    expect(await undoDeleteTransactions(unwrap(del).deleted!)).toEqual({ ok: true, data: { count: 1 } });
+    expect((await rowOf(tx.id)).recurringExpenseId).toBeNull();
+  });
+
+  it("카테고리가 없으면 오류이고 아무것도 넣지 않는다", async () => {
+    const a = await create();
+    const b = await create();
+    const del = await deleteTransactions([a, b]);
+    const rows = unwrap(del).deleted!;
+    const bad = [rows[0], { ...rows[1], categoryId: "no-such-category" }];
+    expect(await undoDeleteTransactions(bad)).toEqual({
+      ok: false,
+      error: "카테고리가 없어 되돌릴 수 없습니다",
+    });
+    expect(await db.transaction.count()).toBe(0);
+  });
+
+  it("카테고리 유형이 다르면 오류이고 아무것도 넣지 않는다", async () => {
+    const a = await create();
+    const b = await create();
+    const del = await deleteTransactions([a, b]);
+    const rows = unwrap(del).deleted!;
+    const bad = [rows[0], { ...rows[1], categoryId: salary }];
+    expect(await undoDeleteTransactions(bad)).toEqual({
+      ok: false,
+      error: "카테고리가 없어 되돌릴 수 없습니다",
+    });
+    expect(await db.transaction.count()).toBe(0);
+  });
+
+  it("이미 있는 id는 건너뛰고 count 0이며 오류가 아니다", async () => {
+    const id = await create();
+    const del = await deleteTransaction(id);
+    expect(await undoDeleteTransactions(unwrap(del).deleted!)).toEqual({ ok: true, data: { count: 1 } });
+    expect(await undoDeleteTransactions(unwrap(del).deleted!)).toEqual({ ok: true, data: { count: 0 } });
+    expect(await db.transaction.count()).toBe(1);
+  });
+
+  it("잘못된 입력은 잘못된 요청입니다 (빈 배열, 5,001건, 형식 오류, 중복 id)", async () => {
+    const id = await create();
+    const del = await deleteTransaction(id);
+    const row = unwrap(del).deleted![0];
+    const tooMany = Array.from({ length: 5001 }, (_, i) => ({ ...row, id: `u-${i}` }));
+    const inputs: unknown[] = [
+      [],
+      tooMany,
+      [{ ...row, amount: "abc" }],
+      "abc",
+      [row, row],
+    ];
+    for (const input of inputs) {
+      expect(await undoDeleteTransactions(input)).toEqual({ ok: false, error: "잘못된 요청입니다" });
+    }
+    expect(await db.transaction.count()).toBe(0);
+  });
+
+  it(
+    "일반 거래 5,000건은 deleted가 3,000,000바이트 이하이고 되돌리기에 성공한다",
+    { timeout: 60_000 },
+    async () => {
+      await db.transaction.createMany({
+        data: Array.from({ length: 5000 }, (_, i) => ({
+          type: "EXPENSE" as const,
+          amount: 1000 + i,
+          occurredOn: toDbDate("2026-10-21"),
+          categoryId: food,
+          merchant: `거래처${i}`,
+          item: `품목${i}`,
+          purpose: "목적",
+          memo: `메모 ${i}`,
+          paymentMethod: "CASH" as const,
+        })),
+      });
+      const ids = (await db.transaction.findMany({ select: { id: true } })).map((r) => r.id);
+      const originals = await rowsOf(ids);
+      const del = await deleteTransactions(ids);
+      expect(del.ok).toBe(true);
+      const deleted = unwrap(del).deleted!;
+      expect(deleted).toHaveLength(5000);
+      expect(new TextEncoder().encode(JSON.stringify(deleted)).length).toBeLessThanOrEqual(3_000_000);
+      expect(await db.transaction.count()).toBe(0);
+      expect(await undoDeleteTransactions(deleted)).toEqual({ ok: true, data: { count: 5000 } });
+      expect(await rowsOf(ids)).toEqual(originals);
+    },
+  );
+
+  it(
+    "최대 길이 한글 memo·purpose 1,000건 일괄 삭제는 deleted 없이 삭제만 완료된다",
+    { timeout: 60_000 },
+    async () => {
+      await db.transaction.createMany({
+        data: Array.from({ length: 1000 }, () => ({
+          type: "EXPENSE" as const,
+          amount: 1000,
+          occurredOn: toDbDate("2026-10-21"),
+          categoryId: food,
+          purpose: "가".repeat(200),
+          memo: "나".repeat(1000),
+        })),
+      });
+      const ids = (await db.transaction.findMany({ select: { id: true } })).map((r) => r.id);
+      const del = await deleteTransactions(ids);
+      expect(del).toEqual({ ok: true, data: { count: 1000 } });
+      expect(await db.transaction.count()).toBe(0);
+    },
+  );
 });

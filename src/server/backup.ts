@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { fromDbDate, toDbDate } from "@/lib/date";
 import type { Backup, BackupCounts } from "@/lib/validation/backup";
 import { BACKUP_FORMAT, BACKUP_VERSION } from "@/lib/validation/backup";
+import { toBackupTransaction } from "@/server/transactions";
 
 const RESTORE_CHUNK_SIZE = 1000;
 
@@ -42,20 +43,7 @@ export async function exportBackup(now: Date): Promise<Backup> {
       archivedAt: c.archivedAt?.toISOString() ?? null,
       createdAt: c.createdAt.toISOString(),
     })),
-    transactions: transactions.map((t) => ({
-      id: t.id,
-      type: t.type,
-      amount: t.amount,
-      occurredOn: fromDbDate(t.occurredOn),
-      categoryId: t.categoryId,
-      merchant: t.merchant,
-      item: t.item,
-      purpose: t.purpose,
-      memo: t.memo,
-      paymentMethod: t.paymentMethod,
-      createdAt: t.createdAt.toISOString(),
-      recurringExpenseId: t.recurringExpenseId,
-    })),
+    transactions: transactions.map(toBackupTransaction),
     recurringExpenses: recurringExpenses.map((r) => ({
       id: r.id,
       categoryId: r.categoryId,

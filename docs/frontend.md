@@ -64,6 +64,7 @@ FAB 기본 날짜: `?date=` → 이번 달이 아닌 `?month=`의 1일 → 오�
 ## 피드백
 
 - 성공·실패: sonner `toast.success("저장했습니다" | "삭제했습니다")`, `toast.error(result.error)`.
+- 거래 삭제 성공 토스트는 `toastDeleted` (`components/transaction/undo-delete.ts`)로 띄운다: "되돌리기" 액션 + 10초 표시. 규칙은 [knowledge/transaction.md](../knowledge/transaction.md).
 - 필드 오류: 인라인 표시. 접힌 "상세 입력" 영역에 오류가 있으면 펼친다.
 - 삭제: `AlertDialog` 확인 후 실행. 진행 중 버튼 `disabled` + "저장 중..." / "삭제 중...".
 - 수정 대상이 이미 삭제됐으면(`"이미 삭제"` 포함 메시지) 다이얼로그를 닫는다.

@@ -12,13 +12,15 @@ import {
   TRANSACTION_TYPES,
   type TransactionInput,
 } from "@/lib/validation/transaction";
-import type { Prisma } from "@/generated/prisma/client";
+import type { BackupTransaction } from "@/lib/validation/backup";
+import type { Prisma, Transaction } from "@/generated/prisma/client";
 import {
   CATEGORY_ARCHIVED,
   CATEGORY_MISSING,
   CATEGORY_TYPE_MISMATCH,
   ServiceError,
   TX_NOT_FOUND,
+  UNDO_CATEGORY_MISSING,
   prismaCode,
 } from "@/server/service-error";
 
@@ -105,20 +107,102 @@ export async function updateTransaction(id: string, input: TransactionInput): Pr
   }
 }
 
-export async function deleteTransaction(id: string): Promise<void> {
+/** 거래 행 → 백업·되돌리기용 레코드 (백업 JSON의 transactions 항목과 같은 형식) */
+export function toBackupTransaction(row: Transaction): BackupTransaction {
+  return {
+    id: row.id,
+    type: row.type,
+    amount: row.amount,
+    occurredOn: fromDbDate(row.occurredOn),
+    categoryId: row.categoryId,
+    merchant: row.merchant,
+    item: row.item,
+    purpose: row.purpose,
+    memo: row.memo,
+    paymentMethod: row.paymentMethod,
+    createdAt: row.createdAt.toISOString(),
+    recurringExpenseId: row.recurringExpenseId,
+  };
+}
+
+/** 거래 삭제. 지운 거래를 되돌리기용 레코드로 돌려준다 */
+export async function deleteTransaction(id: string): Promise<{ deleted: BackupTransaction[] }> {
   try {
-    await db.transaction.delete({ where: { id } });
+    const row = await db.transaction.delete({ where: { id } });
+    return { deleted: [toBackupTransaction(row)] };
   } catch (e) {
     if (prismaCode(e) === "P2025") throw new ServiceError(TX_NOT_FOUND);
     throw e;
   }
 }
 
-/** 선택한 거래 일괄 삭제. 이미 없는 id는 무시하고, 하나도 없으면 TX_NOT_FOUND */
-export async function deleteTransactions(ids: string[]): Promise<{ count: number }> {
-  const { count } = await db.transaction.deleteMany({ where: { id: { in: ids } } });
+/**
+ * 선택한 거래 일괄 삭제. 이미 없는 id는 무시하고, 하나도 없으면 TX_NOT_FOUND.
+ * deleted는 실제로 지운 거래의 되돌리기용 레코드 (조회-삭제 사이 경합은 1인 앱이라 수용)
+ */
+export async function deleteTransactions(
+  ids: string[],
+): Promise<{ count: number; deleted: BackupTransaction[] }> {
+  const rows = await db.transaction.findMany({ where: { id: { in: ids } } });
+  if (rows.length === 0) throw new ServiceError(TX_NOT_FOUND);
+  const { count } = await db.transaction.deleteMany({
+    where: { id: { in: rows.map((r) => r.id) } },
+  });
   if (count === 0) throw new ServiceError(TX_NOT_FOUND);
-  return { count };
+  return { count, deleted: rows.map(toBackupTransaction) };
+}
+
+/**
+ * 삭제한 거래를 원래 id·createdAt·recurringExpenseId 그대로 다시 넣는다.
+ * 카테고리가 모두 있고 유형이 같아야 한다(보관된 카테고리는 허용). 하나라도 아니면 아무것도 넣지 않는다.
+ * 지금 없는 고정지출 연결은 null로 넣고, 이미 있는 id는 건너뛴다. count는 실제로 넣은 건수.
+ */
+export async function undoDeleteTransactions(
+  rows: BackupTransaction[],
+): Promise<{ count: number }> {
+  const categoryIds = [...new Set(rows.map((r) => r.categoryId))];
+  const categories = await db.category.findMany({
+    where: { id: { in: categoryIds } },
+    select: { id: true, type: true },
+  });
+  const categoryType = new Map(categories.map((c) => [c.id, c.type]));
+  if (rows.some((r) => categoryType.get(r.categoryId) !== r.type)) {
+    throw new ServiceError(UNDO_CATEGORY_MISSING);
+  }
+
+  const recurringIds = [
+    ...new Set(rows.flatMap((r) => (r.recurringExpenseId ? [r.recurringExpenseId] : []))),
+  ];
+  const existingRecurring = new Set(
+    (
+      await db.recurringExpense.findMany({
+        where: { id: { in: recurringIds } },
+        select: { id: true },
+      })
+    ).map((r) => r.id),
+  );
+
+  const chunks: BackupTransaction[][] = [];
+  for (let i = 0; i < rows.length; i += IMPORT_CHUNK_SIZE) {
+    chunks.push(rows.slice(i, i + IMPORT_CHUNK_SIZE));
+  }
+  const results = await db.$transaction(
+    chunks.map((chunk) =>
+      db.transaction.createMany({
+        data: chunk.map((r) => ({
+          ...r,
+          occurredOn: toDbDate(r.occurredOn),
+          createdAt: new Date(r.createdAt),
+          recurringExpenseId:
+            r.recurringExpenseId && existingRecurring.has(r.recurringExpenseId)
+              ? r.recurringExpenseId
+              : null,
+        })),
+        skipDuplicates: true,
+      }),
+    ),
+  );
+  return { count: results.reduce((sum, r) => sum + r.count, 0) };
 }
 
 /**

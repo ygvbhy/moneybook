@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TransactionCardList } from "@/components/transaction/transaction-card-list";
 import { TransactionTable } from "@/components/transaction/transaction-table";
+import { toastDeleted } from "@/components/transaction/undo-delete";
 import { deleteTransactions, updateTransactionsCategory } from "@/server/actions/transactions";
 import type { CategoryDto } from "@/server/categories";
 import type { TransactionDto } from "@/server/transactions";
@@ -110,7 +111,11 @@ export function TransactionList({
     startTransition(async () => {
       const result = await deleteTransactions(ids);
       if (!result.ok) return applyFailure(result.error);
-      toast.success(`${result.data?.count ?? ids.length}건을 삭제했습니다`);
+      toastDeleted({
+        message: `${result.data?.count ?? ids.length}건을 삭제했습니다`,
+        deleted: result.data?.deleted,
+        refresh: () => router.refresh(),
+      });
       finish();
     });
   }

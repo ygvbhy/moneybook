@@ -6,6 +6,7 @@ import { requireSession } from "@/lib/auth/dal";
 import type { ActionResult } from "@/lib/action-result";
 import { todayInSeoul } from "@/lib/date";
 import { MAX_IMPORT_BYTES, formatTransactionsCsv, parseTransactionsCsv } from "@/lib/transaction-csv";
+import { backupTransactionSchema, type BackupTransaction } from "@/lib/validation/backup";
 import { transactionSchema } from "@/lib/validation/transaction";
 import { runService, validationFailure } from "@/server/action-utils";
 import { listCategories } from "@/server/categories";
@@ -18,6 +19,16 @@ const idsSchema = z.array(z.string().min(1));
 const bulkCategorySchema = z.object({ ids: z.unknown(), categoryId: z.string().min(1) });
 
 const MAX_BULK_TRANSACTIONS = 5000;
+
+// 삭제 응답에 실리는 되돌리기용 레코드의 최대 JSON 바이트.
+// 응답 한도(약 4.5MB)에 RSC payload 여유를 두고, 되돌리기 요청 body 한도(4mb) 안에도 들게 하는 값
+const MAX_UNDO_BYTES = 3_000_000;
+
+const undoSchema = z
+  .array(backupTransactionSchema)
+  .min(1)
+  .max(MAX_BULK_TRANSACTIONS)
+  .refine((rows) => new Set(rows.map((r) => r.id)).size === rows.length);
 
 /** 형식 검증 → 중복 제거 → 건수 검사. 통과하면 고유 id 배열, 아니면 오류 결과 */
 function parseBulkIds(raw: unknown): { ids: string[] } | { error: string } {
@@ -57,7 +68,9 @@ export async function updateTransaction(id: string, input: unknown): Promise<Act
   return result;
 }
 
-export async function deleteTransaction(id: string): Promise<ActionResult> {
+export async function deleteTransaction(
+  id: string,
+): Promise<ActionResult<{ deleted: BackupTransaction[] }>> {
   await requireSession();
   const parsedId = idSchema.safeParse(id);
   if (!parsedId.success) return { ok: false, error: "잘못된 요청입니다" };
@@ -66,13 +79,32 @@ export async function deleteTransaction(id: string): Promise<ActionResult> {
   return result;
 }
 
-export async function deleteTransactions(ids: unknown): Promise<ActionResult<{ count: number }>> {
+export async function deleteTransactions(
+  ids: unknown,
+): Promise<ActionResult<{ count: number; deleted?: BackupTransaction[] }>> {
   await requireSession();
   const parsed = parseBulkIds(ids);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   const result = await runService(() => svc.deleteTransactions(parsed.ids));
   // 일부/전부 이미 삭제된 경우에도 목록이 갱신되도록 항상 revalidate
   revalidatePath("/", "layout");
+  if (!result.ok || !result.data) return result;
+  const { count, deleted } = result.data;
+  // 되돌리기용 레코드가 너무 크면 빼고 삭제 결과만 돌려준다 (되돌리기 없이 삭제만 알림)
+  if (new TextEncoder().encode(JSON.stringify(deleted)).length > MAX_UNDO_BYTES) {
+    return { ok: true, data: { count } };
+  }
+  return { ok: true, data: { count, deleted } };
+}
+
+export async function undoDeleteTransactions(
+  input: unknown,
+): Promise<ActionResult<{ count: number }>> {
+  await requireSession();
+  const parsed = undoSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "잘못된 요청입니다" };
+  const result = await runService(() => svc.undoDeleteTransactions(parsed.data));
+  if (result.ok) revalidatePath("/", "layout");
   return result;
 }
 

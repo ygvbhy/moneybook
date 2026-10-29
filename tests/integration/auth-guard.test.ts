@@ -35,7 +35,7 @@ async function counts() {
 describe("인증 가드: 모든 action export는 세션 없이 거부된다", () => {
   beforeEach(resetDb); // 쿠키 없음
 
-  it("action 파일과 export를 탐색했다 (현재 6개 파일, login 제외 19개)", () => {
+  it("action 파일과 export를 탐색했다 (현재 6개 파일, login 제외 20개)", () => {
     expect(Object.keys(files).length).toBeGreaterThan(0);
     expect(targets.length).toBeGreaterThan(0);
   });
