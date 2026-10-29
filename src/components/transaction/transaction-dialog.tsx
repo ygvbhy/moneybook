@@ -41,10 +41,12 @@ function useIsDesktop() {
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** 바뀌면 다이얼로그는 그대로 두고 폼만 다시 마운트한다 */
+  formKey: number;
   formProps: Omit<TransactionFormProps, "onDone">;
 };
 
-export function TransactionDialog({ open, onOpenChange, formProps }: Props) {
+export function TransactionDialog({ open, onOpenChange, formKey, formProps }: Props) {
   const router = useRouter();
   const isDesktop = useIsDesktop();
   const isEdit = !!formProps.transaction;
@@ -53,6 +55,7 @@ export function TransactionDialog({ open, onOpenChange, formProps }: Props) {
 
   const form = (
     <TransactionForm
+      key={formKey}
       {...formProps}
       onDone={() => {
         onOpenChange(false);

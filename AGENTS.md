@@ -47,13 +47,14 @@ Moneybook: 1인용 개인 가계부 웹앱 (Next.js 16 App Router + Prisma 7 + P
 | [knowledge/budget.md](knowledge/budget.md) | 전체·카테고리 예산, 사용률, 초과·미배정 계산 |
 | [knowledge/recurring.md](knowledge/recurring.md) | 고정지출 발생일 계산, 자동 등록, 예정 표시 |
 | [knowledge/reporting.md](knowledge/reporting.md) | 대시보드·캘린더·거래 내역의 집계 규칙 |
+| [knowledge/backup.md](knowledge/backup.md) | 전체 백업 JSON 내보내기·복원(전체 교체), 검증, 크기 한도 |
 
 ## 절대 규칙 (상세는 링크 문서)
 
 - 모든 페이지와 Server Action은 `requireSession()`을 먼저 호출한다. 예외는 `login` action 하나. → [docs/api.md](docs/api.md)
 - 날짜는 `"YYYY-MM-DD"` 문자열 + `src/lib/date.ts` 함수로만 다룬다. 로컬 TZ 메서드·날짜 라이브러리 금지. → [knowledge/date-and-amount.md](knowledge/date-and-amount.md)
 - 금액은 KRW 정수(1 ~ 1,000,000,000). → [knowledge/date-and-amount.md](knowledge/date-and-amount.md)
-- 카테고리는 하드 삭제하지 않고 보관한다. → [knowledge/category.md](knowledge/category.md)
+- 카테고리는 하드 삭제하지 않고 보관한다. 예외는 백업 복원의 전체 교체 하나. → [knowledge/category.md](knowledge/category.md), [knowledge/backup.md](knowledge/backup.md)
 - 통합 테스트는 `TEST_DATABASE_URL` DB만 쓴다 (TRUNCATE 함). → [docs/testing.md](docs/testing.md)
 - 운영 마이그레이션은 빌드에서 돌리지 않고 코드 배포보다 먼저 실행한다. → `README.md` "배포"
 - 의존성 버전은 정확히 고정한다 (`.npmrc`의 `save-exact=true`).

@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  experimental: {
+    // 백업 복원은 JSON 전체를 body로 보낸다 (기본 1MB). 클라이언트 상한은 MAX_BACKUP_BYTES
+    serverActions: { bodySizeLimit: "4mb" },
+  },
   async headers() {
     return [
       {

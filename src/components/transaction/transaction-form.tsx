@@ -57,6 +57,10 @@ export type TransactionFormProps = {
   /** 생성 모드의 기본값 */
   defaultDate: string;
   defaultType?: TxType;
+  /** 생성 모드에서 이 거래의 저장값으로 폼을 채운다(복제). 날짜는 `defaultDate`를 쓴다 */
+  duplicateFrom?: TransactionDto;
+  /** 수정 모드에서 "복제" 버튼을 보여주고, 누르면 호출한다 */
+  onDuplicate?: () => void;
   categories: CategoryDto[];
   recentCategoryIds: Record<TxType, string[]>;
   /** 생성 모드에서만 쓰는 "최근 거래" 칩 원본 */
@@ -81,6 +85,8 @@ export function TransactionForm({
   transaction: tx,
   defaultDate,
   defaultType = "EXPENSE",
+  duplicateFrom,
+  onDuplicate,
   categories,
   recentCategoryIds,
   recentPresets,
@@ -88,10 +94,15 @@ export function TransactionForm({
   onDone,
 }: TransactionFormProps) {
   const isEdit = !!tx;
+  const src = tx ?? duplicateFrom;
   const [pending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const hasDetails = !!(tx && (tx.merchant || tx.item || tx.purpose || tx.paymentMethod || tx.memo));
+  const hasDetails = !!(
+    src &&
+    (src.merchant || src.item || src.purpose || src.paymentMethod || src.memo)
+  );
   const [detailsOpen, setDetailsOpen] = useState(hasDetails);
+  const activeById = new Map(categories.filter((c) => !c.archived).map((c) => [c.id, c]));
 
   const {
     register,
@@ -104,15 +115,20 @@ export function TransactionForm({
   } = useForm<FormValues, unknown, TransactionInput>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
-      type: tx?.type ?? defaultType,
-      amount: tx?.amount,
-      categoryId: tx?.categoryId ?? "",
+      type: src?.type ?? defaultType,
+      amount: src?.amount,
+      // 복제 시 보관된 카테고리는 가져오지 않는다
+      categoryId: tx
+        ? tx.categoryId
+        : duplicateFrom && activeById.has(duplicateFrom.categoryId)
+          ? duplicateFrom.categoryId
+          : "",
       occurredOn: tx?.occurredOn ?? defaultDate,
-      merchant: tx?.merchant ?? "",
-      item: tx?.item ?? "",
-      purpose: tx?.purpose ?? "",
-      paymentMethod: tx?.paymentMethod ?? "",
-      memo: tx?.memo ?? "",
+      merchant: src?.merchant ?? "",
+      item: src?.item ?? "",
+      purpose: src?.purpose ?? "",
+      paymentMethod: src?.paymentMethod ?? "",
+      memo: src?.memo ?? "",
     },
   });
 
@@ -123,7 +139,6 @@ export function TransactionForm({
   const options = categories.filter(
     (c) => c.type === type && (!c.archived || c.id === tx?.categoryId),
   );
-  const activeById = new Map(categories.filter((c) => !c.archived).map((c) => [c.id, c]));
   const chips = (recentCategoryIds[type] ?? [])
     .map((id) => activeById.get(id))
     .filter((c): c is CategoryDto => !!c && c.type === type)
@@ -414,9 +429,16 @@ export function TransactionForm({
 
       <div className="flex items-center justify-between gap-2 pt-2">
         {isEdit ? (
-          <Button type="button" variant="destructive" disabled={pending} onClick={() => setConfirmOpen(true)}>
-            삭제
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="destructive" disabled={pending} onClick={() => setConfirmOpen(true)}>
+              삭제
+            </Button>
+            {onDuplicate && (
+              <Button type="button" variant="outline" disabled={pending} onClick={onDuplicate}>
+                복제
+              </Button>
+            )}
+          </div>
         ) : (
           <span />
         )}

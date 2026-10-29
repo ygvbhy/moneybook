@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, isActivePath } from "./nav-items";
+import { BackupButton } from "./backup-dialog";
 import { ThemeToggle } from "./theme-toggle";
 
 // 접힌 상태에서만 오른쪽 Tooltip을 붙인다.
@@ -99,6 +100,13 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
           })}
         </nav>
         <div className={cn("flex flex-col gap-1 border-t p-3", collapsed && "items-center")}>
+          {collapsed ? (
+            <CollapsedTooltip collapsed label="백업">
+              <BackupButton />
+            </CollapsedTooltip>
+          ) : (
+            <BackupButton withLabel />
+          )}
           {collapsed ? (
             <CollapsedTooltip collapsed label="테마 전환">
               <ThemeToggle />

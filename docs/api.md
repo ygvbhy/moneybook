@@ -41,6 +41,7 @@ export async function updateX(id: string, input: unknown): Promise<ActionResult>
 | update / delete / rename / archive / restore | 항상 (이미 삭제된 대상이어도 목록 갱신) |
 | import | `if (result.ok)`일 때만 |
 | 읽기 전용 (export) | 호출하지 않는다 (값만 반환) |
+| restore (백업 복원) | `if (result.ok)`일 때만 (실패하면 데이터가 그대로) |
 
 ### 체크리스트 (새 action)
 
@@ -68,6 +69,8 @@ export async function updateX(id: string, input: unknown): Promise<ActionResult>
 | | `setCategoryBudget(input)` | `categoryBudgetSchema` | — |
 | `recurring.ts` | `createRecurring(input)` | `recurringSchema` | `{ id }` |
 | | `updateRecurring(id, input)` / `deleteRecurring(id)` | | — |
+| `backup.ts` | `exportBackup()` | — | `{ filename, json, counts }` (읽기 전용) |
+| | `restoreBackup(input)` | 파싱한 백업 객체, `backupSchema` | `{ counts }`. 전체 교체. 검증 오류는 `fieldErrors.rows`에 `"경로: 메시지"` 최대 20개 → [knowledge/backup.md](../knowledge/backup.md) |
 
 ## 클라이언트 호출 패턴
 

@@ -23,7 +23,7 @@ src/
       budgets/           /budgets 예산 + 카테고리 관리
   components/
     ui/                  shadcn 생성 컴포넌트
-    app-shell/           사이드바, 하단 탭, 모바일 헤더, FAB, PageHeader/PageEmpty, PageSkeleton, 테마 토글, NAV_ITEMS
+    app-shell/           사이드바, 하단 탭, 모바일 헤더, FAB, PageHeader/PageEmpty, PageSkeleton, 테마 토글, 백업 다이얼로그, NAV_ITEMS
     transaction/ calendar/ dashboard/ budget/ recurring/ report/   기능별 컴포넌트
     amount-input.tsx     금액 입력 (공용)
     month-switcher.tsx   월 이동 링크 (공용)

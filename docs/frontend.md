@@ -10,7 +10,8 @@
 | `AmountInput` | `components/amount-input.tsx` | 천 단위 쉼표 표시, `number \| null` 반환, "원" 접미사 |
 | `AmountText` | `components/transaction/amount-text.tsx` | 수입 `+`/지출 `-` 기호 + 색 |
 | `BudgetMeter` | `components/budget/budget-meter.tsx` | 사용액·잔여·사용률·초과 표시 |
-| `useTransactionDialog()` | `components/transaction/transaction-dialog-provider.tsx` | 어디서든 거래 추가/수정 다이얼로그 열기 |
+| `useTransactionDialog()` | `components/transaction/transaction-dialog-provider.tsx` | 어디서든 거래 추가/수정 다이얼로그 열기 (수정 → 복제 전환 포함) |
+| `BackupButton` | `components/app-shell/backup-dialog.tsx` | 백업 내보내기·복원 다이얼로그 (사이드바·모바일 헤더) |
 | `NAV_ITEMS`, `isActivePath` | `components/app-shell/nav-items.ts` | 사이드바·하단 탭 공용 메뉴 |
 | shadcn `ui/*` | `components/ui/` | Button, Card, Dialog, Sheet, AlertDialog, Select, ToggleGroup, Checkbox 등 |
 
@@ -22,13 +23,13 @@
 | --- | --- |
 | 서버 데이터 | Server Component가 조회해 props로 전달. 변경 후 `router.refresh()` |
 | 월·날짜·필터 | URL search params ([api.md](api.md)) |
-| 거래 다이얼로그 열림·대상 | `TransactionDialogProvider` (context: `today`, `openCreate`, `openEdit`) |
+| 거래 다이얼로그 열림·대상 | `TransactionDialogProvider` (context: `today`, `openCreate`, `openEdit`. 복제는 내부 `openDuplicate`로 폼에만 전달) |
 | 폼 | react-hook-form + `zodResolver` |
 | 사이드바 접힘 | 쿠키 `sidebar_collapsed=1` (레이아웃이 서버에서 읽음) |
 | 테마 | next-themes (`class` 속성, 기본 system) |
 
 - props가 바뀔 때 로컬 상태를 맞추는 경우 `useEffect` 대신 "렌더 중 이전 값 비교" 패턴을 쓴다 (`calendar-grid.tsx`, `transaction-filters.tsx`).
-- 다이얼로그를 새로 열 때 `key={Date.now()}`로 폼을 리마운트해 초기화한다.
+- 다이얼로그를 새로 열 때 `key={Date.now()}`로 폼을 리마운트해 초기화한다. 거래 복제는 다이얼로그 `key`는 그대로 두고 폼의 `formKey`만 바꿔, 다이얼로그를 닫지 않고 폼만 생성 모드로 리마운트한다.
 
 ## 반응형 (기준 `md` = 768px)
 

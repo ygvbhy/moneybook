@@ -9,8 +9,8 @@ import type { TransactionDto } from "@/server/transactions";
 type TxType = "INCOME" | "EXPENSE";
 
 type Target =
-  | { mode: "create"; date: string; key: number }
-  | { mode: "edit"; tx: TransactionDto; key: number };
+  | { mode: "create"; date: string; source?: TransactionDto; key: number; formKey: number }
+  | { mode: "edit"; tx: TransactionDto; key: number; formKey: number };
 
 type Ctx = {
   today: string;
@@ -46,15 +46,30 @@ export function TransactionDialogProvider({
 
   const openCreate = useCallback(
     (defaults?: { date?: string }) => {
-      setTarget({ mode: "create", date: defaults?.date ?? today, key: Date.now() });
+      const now = Date.now();
+      setTarget({ mode: "create", date: defaults?.date ?? today, key: now, formKey: now });
       setOpen(true);
     },
     [today],
   );
   const openEdit = useCallback((tx: TransactionDto) => {
-    setTarget({ mode: "edit", tx, key: Date.now() });
+    const now = Date.now();
+    setTarget({ mode: "edit", tx, key: now, formKey: now });
     setOpen(true);
   }, []);
+  // 다이얼로그 key는 유지하고 폼만 다시 마운트한다. 닫은 뒤 포커스가 원래 트리거로 돌아가게 하기 위함
+  const openDuplicate = useCallback(
+    (tx: TransactionDto) => {
+      setTarget((t) => ({
+        mode: "create",
+        date: today,
+        source: tx,
+        key: t?.key ?? Date.now(),
+        formKey: Date.now(),
+      }));
+    },
+    [today],
+  );
 
   const value = useMemo(() => ({ today, openCreate, openEdit }), [today, openCreate, openEdit]);
 
@@ -66,9 +81,12 @@ export function TransactionDialogProvider({
           key={target.key}
           open={open}
           onOpenChange={setOpen}
+          formKey={target.formKey}
           formProps={{
             transaction: target.mode === "edit" ? target.tx : undefined,
             defaultDate: target.mode === "create" ? target.date : target.tx.occurredOn,
+            duplicateFrom: target.mode === "create" ? target.source : undefined,
+            onDuplicate: target.mode === "edit" ? () => openDuplicate(target.tx) : undefined,
             categories,
             recentCategoryIds,
             recentPresets,

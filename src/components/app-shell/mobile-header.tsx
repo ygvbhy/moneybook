@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { logout } from "@/server/actions/auth";
 import { Button } from "@/components/ui/button";
+import { BackupButton } from "./backup-dialog";
 import { ThemeToggle } from "./theme-toggle";
 
 /** 모바일(<768px) 상단 바: 사이드바가 숨겨지므로 테마 전환·로그아웃을 여기서 제공한다 */
@@ -15,6 +16,7 @@ export function MobileHeader() {
         Moneybook
       </Link>
       <div className="flex items-center gap-1">
+        <BackupButton />
         <ThemeToggle />
         <form action={logout}>
           <Button type="submit" variant="ghost" size="icon" aria-label="로그아웃">
